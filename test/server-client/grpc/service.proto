@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+message modelRequest {
+  string greeting = 1;
+}
+message modelResponse {
+  string reply = 1;
+}
+service test {
+  rpc upload(modelRequest) returns (modelResponse);
+}
