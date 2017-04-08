@@ -32,8 +32,8 @@ class MNIST_CNN(TensorGraph):
 
     def create_input_placeholder(self):
         tf_dataset = tf.placeholder(tf.float32, [None, 784])
-        tf_labels = tf.placeholder(tf.float32, [None, 10])
-    
+        tf_labels = tf.placeholder(tf.float32, [None, 10])    
+
         return [tf_dataset, tf_labels]
 
     def create_parameter_placeholder(self):
@@ -66,19 +66,17 @@ class MNIST_CNN(TensorGraph):
         y_conv = tf.nn.softmax(tf.matmul(h_fc1_drop, variables[6]) + variables[7])
         loss = -tf.reduce_sum(tf_labels * tf.log(y_conv))
         optimizer = tf.train.GradientDescentOptimizer(learning_rate)
+        #optimizer = tf.train.AdamOptimizer(learning_rate)
         optimization = optimizer.minimize(loss)
         compute_gradients = optimizer.compute_gradients(loss)
         prediction = y_conv
-        apply_gradients = []
-        for i in range(len(variables)):
-            apply_gradients.append(variables[i].assign(variables[i] - para_ph[i]))
+        var = tf.global_variables()
+
+        grads = [(para_ph[i], var[i]) for i in range(len(var))]
+        apply_gradients = optimizer.apply_gradients(grads)
 
         assign_parameters = []
         for i in range(len(variables)):
             assign_parameters.append(variables[i].assign(para_ph[i]))
 
         return (loss, compute_gradients, apply_gradients, assign_parameters, optimization, prediction)
-
-if __name__ == '__main__':
-    cnn = MNSIT_CNN()
-    
