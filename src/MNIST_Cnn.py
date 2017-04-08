@@ -1,16 +1,18 @@
 import tensorflow as tf
 from TensorGraph import TensorGraph
 
+data_type = tf.float32
+
 def weight_varible(shape):
-    initial = tf.truncated_normal(shape, stddev=0.1)
+    initial = tf.truncated_normal(shape, stddev=0.1, dtype=data_type)
     return tf.Variable(initial)
 
 def bias_variable(shape):
-    initial = tf.constant(0.1, shape=shape)
+    initial = tf.constant(0.1, shape=shape, dtype=data_type)
     return tf.Variable(initial)
 
 def parameter_placeholder(shape):
-    return tf.placeholder(tf.float32, shape=shape)
+    return tf.placeholder(data_type, shape=shape)
 
 def conv2d(x, W):
     return tf.nn.conv2d(x, W, strides=[1, 1, 1, 1], padding='SAME')
@@ -31,8 +33,8 @@ class MNIST_CNN(TensorGraph):
         return variable
 
     def create_input_placeholder(self):
-        tf_dataset = tf.placeholder(tf.float32, [None, 784])
-        tf_labels = tf.placeholder(tf.float32, [None, 10])    
+        tf_dataset = tf.placeholder(data_type, [None, 784])
+        tf_labels = tf.placeholder(data_type, [None, 10])    
 
         return [tf_dataset, tf_labels]
 
