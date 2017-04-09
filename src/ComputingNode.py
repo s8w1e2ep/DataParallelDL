@@ -14,7 +14,7 @@ def gpu_split(worker_num):
     proportion = 1. / (worker_num+1)
     gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=proportion)
     config = tf.ConfigProto(gpu_options=gpu_options)
-    config = tf.ConfigProto(device_count = {'GPU': 0})
+    #config = tf.ConfigProto(device_count = {'GPU': 0})
     return config
 
 def init_conn(ip, port):
@@ -28,8 +28,8 @@ class ComputingNode:
         self.batch_size = 200
         self.train_dataset, self.train_labels, self.valid_dataset, self.valid_labels, self.test_dataset, self.test_labels = open_dataset(start,length)
         gpu_config = gpu_split(len(cluster_spec['cn']))
-        self.graph = ANN(gpu_config)
-        self.graph_shape = self.graph.get_shape()
+        self.graph = CNN(gpu_config)
+        self.graph_shape = self.graph.get_configure()
         self.ps = init_conn(cluster_spec['ps'][0]['IP'], cluster_spec['ps'][0]['Port']) 
         self.num_epochs = 3
         self.sw = StopWatch()
@@ -55,6 +55,7 @@ class ComputingNode:
             gradients = self.graph.get_gradients(all_batch_data[i], all_batch_label[i])
             self.sw.accumulate('compute_gradients')
             self.update_parameters()
+            self.sw.reset()
             self.apply_gradients(gradients)
             self.sw.accumulate('apply_gradients')
             # update the gradients to the ps

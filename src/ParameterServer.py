@@ -21,7 +21,7 @@ class Dispatcher(object):
     def __init__(self):
         self.update_count = 0
         config = gpu_configure()
-        self.graph = ANN(config)
+        self.graph = CNN(config)
         check_size(comp.preprocess(self.graph.get_parameters()))
         self.model = comp.preprocess(self.graph.get_parameters())
 

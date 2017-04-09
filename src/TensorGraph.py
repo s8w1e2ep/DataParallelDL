@@ -1,5 +1,6 @@
 import tensorflow as tf
 from abc import ABCMeta, abstractmethod
+import numpy as np
 
 class TensorGraph:
     __metaclass__= ABCMeta
@@ -35,7 +36,9 @@ class TensorGraph:
             self.load(path)
 
     def get_parameters(self):
-        return self.session.run(tf.global_variables())
+        op = tf.global_variables()
+        paras = self.session.run(op)
+        return paras[:len(self.parameters)]
 
     def predict(self, data):
         prediction =self.graph_op[5]
@@ -80,7 +83,7 @@ class TensorGraph:
             feed_dict[parameter_name] = parameters[i]
         self.session.run(assign_parameters, feed_dict=feed_dict)
 
-    def get_shape(self):
+    def get_configure(self):
         paras = self.get_parameters()
         graph_shape = [para.shape for para in paras]
         return graph_shape
