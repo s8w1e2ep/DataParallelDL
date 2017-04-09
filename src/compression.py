@@ -4,6 +4,8 @@ import cPickle
 import numpy as np
 import zlib
 
+data_type = np.float16
+
 def preprocess(target):
     s_out = numpy_serialize(target)
     #dec_out = zlib.compress(s_out)
@@ -22,7 +24,7 @@ def numpy_serialize(un_serialized_object):
     return serialized_object
 
 def numpy_deserialize(serialized_object, graph_shape):
-    flat_arr = np.fromstring(serialized_object, dtype=np.float32)
+    flat_arr = np.fromstring(serialized_object, dtype=data_type)
     un_serialized_object = expand_dim(flat_arr, graph_shape)
     return un_serialized_object
 
@@ -35,8 +37,9 @@ def cPickle_deserilize(serialized_object):
     return un_serialized_object
 
 def to_one_dim(matrix_list):
-    flat_arr = np.empty([0,0], dtype=np.float32)
+    flat_arr = np.empty([0,0], dtype=data_type)
     for arr in matrix_list:
+        arr = arr.astype(data_type)
         flat_arr = np.append(flat_arr, arr.ravel())
     return flat_arr
 
