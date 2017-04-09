@@ -22,14 +22,15 @@ def max_pool_2x2(x):
 
 class MNIST_CNN(TensorGraph):
     def create_variable(self):
-        variable = (weight_varible([5, 5, 1, 32]),
-                    bias_variable([32]), 
-                    weight_varible([5,5, 32, 64]),
-                    bias_variable([64]),
-                    weight_varible([3136, 1024]),
-                    bias_variable([1024]),
-                    weight_varible([1024, 10]),
-                    bias_variable([10]))
+        with tf.variable_scope("my_scope"):
+            variable = (weight_varible([5, 5, 1, 32]),
+                        bias_variable([32]), 
+                        weight_varible([5,5, 32, 64]),
+                        bias_variable([64]),
+                        weight_varible([3136, 1024]),
+                        bias_variable([1024]),
+                        weight_varible([1024, 10]),
+                        bias_variable([10]))
         return variable
 
     def create_input_placeholder(self):
@@ -53,7 +54,8 @@ class MNIST_CNN(TensorGraph):
 
     def create_graph(self):
         keep_prob = 0.5
-        learning_rate = 0.0001
+        learning_rate = 1e-3
+        epsilon=1e-4
         tf_dataset, tf_labels = self.input_placeholders
         variables = self.parameters
         para_ph = self.parameter_placeholders
@@ -67,14 +69,13 @@ class MNIST_CNN(TensorGraph):
         h_fc1_drop = tf.nn.dropout(h_fc1, keep_prob)
         y_conv = tf.nn.softmax(tf.matmul(h_fc1_drop, variables[6]) + variables[7])
         loss = -tf.reduce_sum(tf_labels * tf.log(y_conv))
-        optimizer = tf.train.GradientDescentOptimizer(learning_rate)
-        #optimizer = tf.train.AdamOptimizer(learning_rate)
+        #optimizer = tf.train.GradientDescentOptimizer(learning_rate)
+        optimizer = tf.train.AdamOptimizer(learning_rate, epsilon)
         optimization = optimizer.minimize(loss)
         compute_gradients = optimizer.compute_gradients(loss)
         prediction = y_conv
-        var = tf.global_variables()
-
-        grads = [(para_ph[i], var[i]) for i in range(len(var))]
+        var = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='my_scope')
+        grads = [(para_ph[i], var[i]) for i in range(len(variables))]
         apply_gradients = optimizer.apply_gradients(grads)
 
         assign_parameters = []
