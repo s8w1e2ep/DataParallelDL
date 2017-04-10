@@ -9,6 +9,7 @@ from Ann import ANN
 from StopWatch import StopWatch
 import thriftpy
 from thriftpy.rpc import make_client
+from dataset import open_mnist_dataset
 
 def gpu_split(worker_num):
     proportion = 1. / (worker_num+1)
@@ -26,7 +27,7 @@ class ComputingNode:
     def __init__(self, cn_id, cluster_spec, start, length, path=None, debug=0, fname='../log/cn{}_profiling.log'):
         self.id = cn_id
         self.batch_size = 200
-        self.train_dataset, self.train_labels, self.valid_dataset, self.valid_labels, self.test_dataset, self.test_labels = open_dataset(start,length)
+        self.train_dataset, self.train_labels, self.valid_dataset, self.valid_labels, self.test_dataset, self.test_labels = open_mnist_dataset(start,length)
         gpu_config = gpu_split(len(cluster_spec['cn']))
         self.graph = CNN(gpu_config)
         self.graph_shape = self.graph.get_configure()
@@ -93,25 +94,3 @@ def open_file(fname):
     existed = os.path.isfile(fname)
     f = open(fname, 'w') if existed else open(fname, 'a')
     return f
-
-def open_dataset(start, length, pickle_file='/home/rche/data/notMNIST.pickle'):
-    with open(pickle_file, 'rb') as f:
-        save = pickle.load(f)
-        train_dataset = save['train_dataset']
-        train_labels = save['train_labels']
-        valid_dataset = save['valid_dataset']
-        valid_labels = save['valid_labels']
-        test_dataset = save['test_dataset']
-        test_labels = save['test_labels']
-        del save  # hint to help gc free up memory
-        train_dataset, train_labels = reformat(train_dataset, train_labels)
-        valid_dataset, valid_labels = reformat(valid_dataset, valid_labels)
-        test_dataset, test_labels = reformat(test_dataset, test_labels)
-    return train_dataset[start:start+length], train_labels[start:start+length], valid_dataset, valid_labels, test_dataset, test_labels
-
-def reformat(dataset, labels):
-    image_size = 28
-    num_labels = 10
-    dataset = dataset.reshape((-1, image_size * image_size)).astype(np.float32)
-    labels = (np.arange(num_labels) == labels[:,None]).astype(np.float32)
-    return dataset, labels
