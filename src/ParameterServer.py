@@ -5,7 +5,8 @@ import fcntl
 import struct
 import compression as comp
 import tensorflow as tf
-from MNIST_Cnn import MNIST_CNN as CNN
+#from MNIST_Cnn import MNIST_CNN as CNN
+from CIFAR10_CNN import CIFAR10_CNN as CNN
 from Ann import ANN
 import thriftpy
 from thriftpy.rpc import make_server

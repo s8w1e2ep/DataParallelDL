@@ -4,11 +4,13 @@ import tensorflow as tf
 import compression as comp
 import cPickle as pickle
 import os
-from MNIST_Cnn import MNIST_CNN as CNN
+#from MNIST_Cnn import MNIST_CNN as CNN
+from CIFAR10_CNN import CIFAR10_CNN as CNN
 from Ann import ANN
 from StopWatch import StopWatch
 import thriftpy
 from thriftpy.rpc import make_client
+from dataset import open_cifar10_dataset
 from dataset import open_mnist_dataset
 
 def gpu_split(worker_num):
@@ -27,12 +29,13 @@ class ComputingNode:
     def __init__(self, cn_id, cluster_spec, start, length, path=None, debug=0, fname='../log/cn{}_profiling.log'):
         self.id = cn_id
         self.batch_size = 200
-        self.train_dataset, self.train_labels, self.valid_dataset, self.valid_labels, self.test_dataset, self.test_labels = open_mnist_dataset(start,length)
+        self.train_dataset, self.train_labels, self.valid_dataset, self.valid_labels, self.test_dataset, self.test_labels = open_cifar10_dataset(start,length)
+        #self.train_dataset, self.train_labels, self.valid_dataset, self.valid_labels, self.test_dataset, self.test_labels = open_mnist_dataset(start,length)
         gpu_config = gpu_split(len(cluster_spec['cn']))
         self.graph = CNN(gpu_config)
         self.graph_shape = self.graph.get_configure()
         self.ps = init_conn(cluster_spec['ps'][0]['IP'], cluster_spec['ps'][0]['Port']) 
-        self.num_epochs = 3
+        self.num_epochs = 20
         self.sw = StopWatch()
 
     def run(self):
@@ -88,7 +91,10 @@ class ComputingNode:
         self.graph.put_parameters(model)
 
 def accuracy(predictions, labels):
-    return (100.0 * np.sum(np.argmax(predictions, 1) == np.argmax(labels, 1)) / predictions.shape[0])
+    if labels.ndim == 1:
+        return (100.0 * np.sum(np.argmax(predictions, 1) == labels) / predictions.shape[0])
+    else:
+        return (100.0 * np.sum(np.argmax(predictions, 1) == np.argmax(labels, 1)) / predictions.shape[0])
 
 def open_file(fname):
     existed = os.path.isfile(fname)
