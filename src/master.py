@@ -21,7 +21,7 @@ def sig_handler(signum, frame):
 
 def kill_child_processes():
     ps = init_conn('127.0.0.1', 8888)
-    print "update count : %d" % ps.get_updateCount()
+    print "update count : %d" % ps.getGlobalStatus()
     parent_pid = os.getpid()
     try:
         parent = psutil.Process(parent_pid)
@@ -73,7 +73,7 @@ if __name__ == '__main__':
         ps_processes.append(process)
 
     # create computing nodes
-    training_set_size = 10000
+    training_set_size = 40000
     length = training_set_size / cn_num
     for i in range(cn_num):
         process = multiprocessing.Process(target=cn_job, args=(i, cluster_spec[machine_num], i*length, length))

@@ -1,5 +1,5 @@
 service WeightSync {
-    void upload(1: string model);
+    i32 upload(1: string model);
     string download();
-    i32 get_updateCount();
+    i32 getGlobalStatus();
 }

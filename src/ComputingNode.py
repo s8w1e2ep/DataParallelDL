@@ -35,24 +35,28 @@ class ComputingNode:
         self.graph = CNN(gpu_config)
         self.graph_shape = self.graph.get_configure()
         self.ps = init_conn(cluster_spec['ps'][0]['IP'], cluster_spec['ps'][0]['Port']) 
-        self.num_epochs = 20
+        self.num_epochs = 100
         self.sw = StopWatch()
+        self.status = {'GlobalStep':0, 'LocalStep':0,'Hit':0}
 
     def run(self):
+        import time
+        if not len(self.train_dataset) % self.batch_size == 0:
+            raise ValueError('Batch size error')
+        all_batch_data = [self.train_dataset[x:x+self.batch_size] for x in xrange(0, len(self.train_dataset), self.batch_size)]
+        all_batch_label = [self.train_labels[x:x+self.batch_size] for x in xrange(0, len(self.train_labels), self.batch_size)]
+        self.update_parameters()
         for step in range(self.num_epochs):
-            self.training(data=self.train_dataset, label=self.train_labels)
+            self.training(all_batch_data, all_batch_label)
             if step % 1 == 0:
                 self.validating()
         self.sw.present()
+        print "Local step : %d" % self.status['LocalStep']
+        print "Hit count : %d" % self.status['Hit']
+        print "Hit rate : %f" % (1000. * self.status['Hit'] / self.status['LocalStep'] * 0.001)
+        
 
-    def training(self, data, label):
-        if not len(data) % self.batch_size == 0:
-            raise ValueError('Batch size error')
-        if not len(data) == len(label):
-            raise ValueError('Data number and label number is mismatch')
-        all_batch_data = [data[x:x+self.batch_size] for x in xrange(0, len(data), self.batch_size)]
-        all_batch_label = [label[x:x+self.batch_size] for x in xrange(0, len(label), self.batch_size)]
-        self.update_parameters()
+    def training(self, all_batch_data, all_batch_label):
         for i in range(len(all_batch_data)):
             # compute the graidents
             self.sw.reset()
@@ -76,19 +80,27 @@ class ComputingNode:
         self.sw.reset()
         text = comp.preprocess(model)
         self.sw.accumulate('preprocess')
-        self.ps.upload(text)
+        self.status['GlobalStep'] = self.ps.upload(text)
+        #self.ps.upload(text)
         self.sw.accumulate('upload')
     
     def apply_gradients(self, gradients):
+        self.status['LocalStep'] += 1
         self.graph.put_gradients(gradients)
 
     def update_parameters(self):
-        self.sw.reset()
-        text = self.ps.download()
-        self.sw.accumulate('download')
-        model = comp.deprocess(text, self.graph_shape)
-        self.sw.accumulate('deprocess')
-        self.graph.put_parameters(model)
+        # sync with ps
+        gStatus = self.ps.getGlobalStatus()
+        if gStatus == self.status['GlobalStep']:
+            self.status['Hit'] += 1
+        else:
+            self.sw.reset()
+            text = self.ps.download()
+            self.sw.accumulate('download')
+            model = comp.deprocess(text, self.graph_shape)
+            self.sw.accumulate('deprocess')
+            self.graph.put_parameters(model)
+            self.sw.accumulate('put para')
 
 def accuracy(predictions, labels):
     if labels.ndim == 1:

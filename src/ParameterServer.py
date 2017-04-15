@@ -29,12 +29,12 @@ class Dispatcher(object):
     def upload(self, u_parameters):
         self.model = u_parameters
         self.update_count += 1
-        return True
+        return self.update_count
 
     def download(self):
         return self.model
 
-    def get_updateCount(self):
+    def getGlobalStatus(self):
         return self.update_count
 
 def init_server(ip, port):
