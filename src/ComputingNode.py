@@ -1,9 +1,9 @@
-import xmlrpclib
+import os
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 import numpy as np 
 import tensorflow as tf
 import compression as comp
 import cPickle as pickle
-import os
 #from MNIST_Cnn import MNIST_CNN as CNN
 from CIFAR10_CNN import CIFAR10_CNN as CNN
 from Ann import ANN
@@ -35,7 +35,7 @@ class ComputingNode:
         self.graph = CNN(gpu_config)
         self.graph_shape = self.graph.get_configure()
         self.ps = init_conn(cluster_spec['ps'][0]['IP'], cluster_spec['ps'][0]['Port']) 
-        self.num_epochs = 100
+        self.num_epochs = 3
         self.sw = StopWatch()
         self.status = {'GlobalStep':0, 'LocalStep':0,'Hit':0}
 
