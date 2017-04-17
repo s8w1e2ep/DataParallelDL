@@ -37,7 +37,8 @@ class ParameterServer(threading.Thread):
         self.graph = CNN(config)
         check_size(comp.preprocess(self.graph.get_parameters()))
         handler = Dispatcher(self.graph)
-        self.server = init_server(self.ip, self.port, handler) 
+        self.server = init_server(self.ip, self.port, handler)
+        super(ParameterServer, self).__init__() 
 
     def run(self):
         print 'Start parameter server(%s)' % self.ip
