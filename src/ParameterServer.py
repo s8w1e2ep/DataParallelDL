@@ -10,6 +10,7 @@ from CIFAR10_CNN import CIFAR10_CNN as CNN
 from Ann import ANN
 import thriftpy
 from thriftpy.rpc import make_server
+import threading
 
 def check_size(model):
     print "The total parameter size is %d bytes" % len(model)
@@ -19,12 +20,9 @@ def gpu_configure():
     return config
 
 class Dispatcher(object):
-    def __init__(self):
+    def __init__(self, graph):
         self.update_count = 0
-        config = gpu_configure()
-        self.graph = CNN(config)
-        check_size(comp.preprocess(self.graph.get_parameters()))
-        self.model = comp.preprocess(self.graph.get_parameters())
+        self.model = comp.preprocess(graph.get_parameters())
 
     def upload(self, u_parameters):
         self.model = u_parameters
@@ -37,16 +35,20 @@ class Dispatcher(object):
     def getGlobalStatus(self):
         return self.update_count
 
-def init_server(ip, port):
+def init_server(ip, port, graph):
     weightsync_thrift = thriftpy.load("weightsync.thrift", module_name="weightsync_thrift")
-    server = make_server(weightsync_thrift.WeightSync, Dispatcher(), ip, port)
+    requestHandler = Dispatcher(graph)
+    server = make_server(weightsync_thrift.WeightSync, requestHandler, ip, port)
     return server
 
-class ParameterServer:
+class ParameterServer(threading.Thread):
     def __init__(self, ps_id, cluster_spec):
         self.ip = cluster_spec['ps'][ps_id]['IP']
         self.port = cluster_spec['ps'][ps_id]['Port']
-        self.server = init_server(self.ip, self.port) 
+        config = gpu_configure()
+        self.graph = CNN(config)
+        check_size(comp.preprocess(self.graph.get_parameters()))
+        self.server = init_server(self.ip, self.port, self.graph) 
 
     def run(self):
         print 'Start parameter server(%s)' % self.ip
