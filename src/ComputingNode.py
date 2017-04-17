@@ -3,13 +3,11 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 import numpy as np 
 import tensorflow as tf
 import compression as comp
-import cPickle as pickle
 #from MNIST_Cnn import MNIST_CNN as CNN
 from CIFAR10_CNN import CIFAR10_CNN as CNN
 from Ann import ANN
 from StopWatch import StopWatch
-import thriftpy
-from thriftpy.rpc import make_client
+from thrift_conn import init_conn
 from dataset import open_cifar10_dataset
 from dataset import open_mnist_dataset
 
@@ -19,11 +17,6 @@ def gpu_split(worker_num):
     config = tf.ConfigProto(gpu_options=gpu_options)
     #config = tf.ConfigProto(device_count = {'GPU': 0})
     return config
-
-def init_conn(ip, port):
-    weightsync_thrift = thriftpy.load("weightsync.thrift", module_name="weightsync_thrift")
-    client = make_client(weightsync_thrift.WeightSync, ip, port)
-    return client
 
 class ComputingNode:
     def __init__(self, cn_id, cluster_spec, start, length, path=None, debug=0, fname='../log/cn{}_profiling.log'):

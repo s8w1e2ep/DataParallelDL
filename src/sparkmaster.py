@@ -1,7 +1,6 @@
 import os
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 import sys
-import signal, psutil
 import timeit
 import multiprocessing
 import ComputingNode as cn
@@ -9,14 +8,7 @@ import ParameterServer as ps
 import tensorflow as tf
 tf.logging.set_verbosity(tf.logging.ERROR)
 from pyspark import SparkContext, SparkConf
-
-
-def init_conn(ip, port):
-    import thriftpy
-    from thriftpy.rpc import make_client
-    weightsync_thrift = thriftpy.load("weightsync.thrift", module_name="weightsync_thrift")
-    client = make_client(weightsync_thrift.WeightSync, ip, port)
-    return client
+from thrift_conn import init_conn
 
 def ps_job(ps_id, cluster_spec):
     ps_node = ps.ParameterServer(ps_id, cluster_spec)

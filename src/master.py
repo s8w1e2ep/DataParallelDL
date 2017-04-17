@@ -8,13 +8,7 @@ import ComputingNode as cn
 import ParameterServer as ps
 import tensorflow as tf
 tf.logging.set_verbosity(tf.logging.ERROR)
-
-def init_conn(ip, port):
-    import thriftpy
-    from thriftpy.rpc import make_client
-    weightsync_thrift = thriftpy.load("weightsync.thrift", module_name="weightsync_thrift")
-    client = make_client(weightsync_thrift.WeightSync, ip, port)
-    return client
+from thrift_conn import init_conn
 
 def sig_handler(signum, frame):
     kill_child_processes()
@@ -73,7 +67,7 @@ if __name__ == '__main__':
         ps_processes.append(process)
 
     # create computing nodes
-    training_set_size = 40000
+    training_set_size = 20000
     length = training_set_size / cn_num
     for i in range(cn_num):
         process = multiprocessing.Process(target=cn_job, args=(i, cluster_spec[machine_num], i*length, length))
