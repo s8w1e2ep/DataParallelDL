@@ -18,31 +18,11 @@ def init_conn(ip, port):
     client = make_client(weightsync_thrift.WeightSync, ip, port)
     return client
 
-def sig_handler(signum, frame):
-    kill_child_processes()
-
-def kill_child_processes():
-    ps = init_conn('127.0.0.1', 8888)
-    print "update count : %d" % ps.getGlobalStatus()
-    parent_pid = os.getpid()
-    try:
-        parent = psutil.Process(parent_pid)
-    except psutil.NoSuchProcess:
-        return
-    children = parent.children(recursive=True)
-    for process in children:
-        process.send_signal(signal.SIGINT)
-
-def soft_exit(signum, frame):
-    sys.exit(0)
-
 def ps_job(ps_id, cluster_spec):
-    signal.signal(signal.SIGINT, soft_exit)
     ps_node = ps.ParameterServer(ps_id, cluster_spec)
-    ps_node.run()
+    ps_node.start()
 
 def cn_job(cn_id, cluster_spec, start, length):
-    signal.signal(signal.SIGINT, soft_exit)
     cn_node = cn.ComputingNode(cn_id, cluster_spec, start, length)
     elapsed_time = timeit.Timer(cn_node.run).timeit(number=1)
     print "cn_node %d : %f sec" % ((cn_id), elapsed_time)
@@ -71,17 +51,12 @@ if __name__ == '__main__':
 
     # create parameter servers
     for i in range(ps_num):
-        process = multiprocessing.Process(target=ps_job, args=(i, cluster_spec[machine_num]))
-        process.start()
-        ps_processes.append(process)
+        ps_job(i, cluster_spec[machine_num])
 
     # create computing nodes
     training_set_size = 20000
     length = training_set_size / cn_num
-    conf = SparkConf().setAppName('paralleltest').setMaster('localcluster')
+    conf = SparkConf().setAppName('paralleltest').setMaster('localcluster').set("spark.ui.showConsoleProgress", "false")
     sc = SparkContext(conf=conf)
     x = sc.parallelize(range(cn_num))
     x.map(lambda x: cn_job(x, cluster_spec[machine_num], x*length, length)).collect()
-
-    signal.signal(signal.SIGINT, sig_handler)
-    kill_child_processes()
