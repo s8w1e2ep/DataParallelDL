@@ -30,10 +30,9 @@ class ComputingNode:
         self.ps = init_conn(cluster_spec['ps'][0]['IP'], cluster_spec['ps'][0]['Port']) 
         self.num_epochs = 3
         self.sw = StopWatch()
-        self.status = {'GlobalStep':0, 'LocalStep':0,'Hit':0}
+        self.status = {'GlobalStep':-1, 'LocalStep':0,'Hit':0}
 
     def run(self):
-        import time
         if not len(self.train_dataset) % self.batch_size == 0:
             raise ValueError('Batch size error')
         all_batch_data = [self.train_dataset[x:x+self.batch_size] for x in xrange(0, len(self.train_dataset), self.batch_size)]
@@ -44,10 +43,8 @@ class ComputingNode:
             if step % 1 == 0:
                 self.validating()
         self.sw.present()
-        print "Local step : %d" % self.status['LocalStep']
         print "Hit count : %d" % self.status['Hit']
         print "Hit rate : %f" % (1000. * self.status['Hit'] / self.status['LocalStep'] * 0.001)
-        
 
     def training(self, all_batch_data, all_batch_label):
         for i in range(len(all_batch_data)):
