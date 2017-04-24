@@ -57,21 +57,36 @@ class Dispatcher(object):
         label = np.zeros(self.dim[2])
         label[cn_id] = 1
         self.predictor.train([data], [label])
-        self.record.append(([data], [label]))
+        self.record.append((data, label))
         
         self.elapsed_record[cn_id] = current_time - self.arrive_record[cn_id]
         self.arrive_record[cn_id] = current_time
         if self.pnext == cn_id:
             self.hit += 1
         
-        dat = self._format_data()
+        data = self._format_data()
         self.pnext = np.argmax(self.predictor.predict([data]))
         self.lock.release()
 
     def getHitRate(self):
-        for component in self.record:
-            print component[0],'\t',component[1]
-        return float(self.hit) / self.count
+        train_again(self.predictor, self.record)
+        hit_rate = float(self.hit) / self.count
+        return hit_rate
+
+def train_again(predictor, record):
+    data = [item[0] for item in record]
+    labels = [item[1] for item in record]
+    for i in range(1000):
+        predictor.train(data, labels)
+        if i % 100 == 0:
+            testing(predictor, data, labels)
+
+def testing(predictor, data, labels):
+    predictions = predictor.predict(data)
+    print "Test accuracy: %.1f%%" % accuracy(predictions, labels)
+
+def accuracy(predictions, labels):
+    return (100.0 * np.sum(np.argmax(predictions, 1) == np.argmax(labels, 1)) / predictions.shape[0])
 
 def ps_job(ps_id, cluster_spec, dim): 
     signal.signal(signal.SIGINT, soft_exit)
@@ -109,7 +124,6 @@ def stdev_normalize(x):
     stdev = np.std(x)
     mean = np.mean(x)
     stdev = 1 if stdev == 0 else stdev
-    print mean, stdev
     return map(lambda i: (i-mean) * 100 / stdev * 0.01, x)
 
 def normalize(x):
@@ -163,4 +177,5 @@ if __name__ == '__main__':
     ping_thrift = thriftpy.load("ping.thrift", module_name="ping_thrift")
     conn = make_client(ping_thrift.PingService, '127.0.0.1', 6000)
     print conn.getHitRate()
+ 
     kill_child_processes()
