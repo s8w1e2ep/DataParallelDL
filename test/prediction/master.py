@@ -35,32 +35,42 @@ class Dispatcher(object):
         self.predictor = predictor(dim[0], dim[1], dim[2])
         stime = time.time()
         self.arrive_record = [stime for i in range(dim[2])]
-        self.elapsed_record = [0 for i in range(dim[2])]
+        self.elapsed_record = [0. for i in range(dim[2])]
         self.pnext = np.argmax(self.predictor.predict([self._format_data()]))
+        self.record = list()
         self.hit = 0
         self.count = 0
+        import threading
+        self.lock = threading.Lock()
 
     def _format_data(self):
-        data = normalize(self.arrive_record)
-        mergedata = data + self.elapsed_record
+        ts_data = normalize(self.arrive_record)
+        et_data = stdev_normalize(self.elapsed_record)
+        mergedata = ts_data + et_data
         return mergedata
 
     def ping(self, cn_id):
+        self.lock.acquire()
         current_time = time.time()
         self.count += 1
-        self.elapsed_record[cn_id] = current_time - self.arrive_record[cn_id]
-        self.arrive_record[cn_id] = current_time
         data = self._format_data()
         label = np.zeros(self.dim[2])
         label[cn_id] = 1
         self.predictor.train([data], [label])
+        self.record.append(([data], [label]))
+        
+        self.elapsed_record[cn_id] = current_time - self.arrive_record[cn_id]
+        self.arrive_record[cn_id] = current_time
         if self.pnext == cn_id:
             self.hit += 1
+        
+        dat = self._format_data()
         self.pnext = np.argmax(self.predictor.predict([data]))
+        self.lock.release()
 
     def getHitRate(self):
-        print self.hit
-        print self.count
+        for component in self.record:
+            print component[0],'\t',component[1]
         return float(self.hit) / self.count
 
 def ps_job(ps_id, cluster_spec, dim): 
@@ -94,15 +104,21 @@ def compute_pi(n):
     pi=4*inside/n
     return pi
 
+def stdev_normalize(x):
+   # (x - Mean) / Deviation
+    stdev = np.std(x)
+    mean = np.mean(x)
+    stdev = 1 if stdev == 0 else stdev
+    print mean, stdev
+    return map(lambda i: (i-mean) * 100 / stdev * 0.01, x)
+
 def normalize(x):
     # (timeseries-timeseries.min())/(timeseries.max()-timeseries.min())
     baseline = min(x)
     last_finish = max(x)
     diff = last_finish - baseline
     diff = 1 if diff == 0 else diff
-    def compute_value(y):
-        return (y - baseline) * 100  / diff * 0.01
-    return map(compute_value, x)
+    return map(lambda i: (i-baseline) * 100 / diff * 0.01, x)
 
 if __name__ == '__main__':
 
