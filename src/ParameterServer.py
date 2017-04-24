@@ -17,14 +17,20 @@ class Dispatcher(object):
     def __init__(self, graph):
         self.update_count = 0
         self.model = comp.preprocess(graph.get_parameters())
+        self.lock = threading.Lock()
 
     def upload(self, u_parameters):
+        self.lock.acquire()
         self.model = u_parameters
         self.update_count += 1
+        self.lock.release()
         return self.update_count
 
     def download(self):
-        return self.model
+        self.lock.acquire()
+        model = self.model
+        self.lock.release()
+        return model
 
     def getGlobalStatus(self):
         return self.update_count
