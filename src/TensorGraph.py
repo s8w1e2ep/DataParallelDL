@@ -5,11 +5,15 @@ import numpy as np
 class TensorGraph:
     __metaclass__= ABCMeta
     def __init__(self, config=None):
-        self.session = tf.Session(config=config)
-        self.parameters = self.create_variable()
-        self.input_placeholders = self.create_input_placeholder()
-        self.parameter_placeholders = self.create_parameter_placeholder()
-        self.graph_op = self.create_graph()
+        self.graph = tf.Graph()
+        with self.graph.as_default():
+            self.parameters = self.create_variable()
+            self.input_placeholders = self.create_input_placeholder()
+            self.parameter_placeholders = self.create_parameter_placeholder()
+            self.graph_op = self.create_graph()
+            self.init_op = tf.global_variables_initializer()
+            self.grab_op = tf.global_variables()
+        self.session = tf.Session(config=config, graph=self.graph)
         self.init_parameters()
 
     @abstractmethod
@@ -30,14 +34,12 @@ class TensorGraph:
 
     def init_parameters(self, path=None):
         if path is None:
-            #self.session.run(tf.initialize_all_variables())
-            self.session.run(tf.global_variables_initializer())
+            self.session.run(self.init_op)
         else:
             self.load(path)
 
     def get_parameters(self):
-        op = tf.global_variables()
-        paras = self.session.run(op)
+        paras = self.session.run(self.grab_op)
         return paras[:len(self.parameters)]
 
     def predict(self, data):
