@@ -25,8 +25,8 @@ class ComputingNode:
         self.train_dataset, self.train_labels, self.valid_dataset, self.valid_labels, self.test_dataset, self.test_labels = open_cifar10_dataset(start,length)
         #self.train_dataset, self.train_labels, self.valid_dataset, self.valid_labels, self.test_dataset, self.test_labels = open_mnist_dataset(start,length)
         gpu_config = gpu_split(len(cluster_spec['cn']))
-        self.graph = CNN(gpu_config)
-        self.graph_shape = self.graph.get_configure()
+        self.tensorgraph = CNN(gpu_config)
+        self.tensorgraph_shape = self.tensorgraph.get_configure()
         self.ps = init_conn(cluster_spec['ps'][0]['IP'], cluster_spec['ps'][0]['Port']) 
         self.num_epochs = 3
         self.sw = StopWatch()
@@ -50,7 +50,7 @@ class ComputingNode:
         for i in range(len(all_batch_data)):
             # compute the graidents
             self.sw.reset()
-            gradients = self.graph.get_gradients(all_batch_data[i], all_batch_label[i])
+            gradients = self.tensorgraph.get_gradients(all_batch_data[i], all_batch_label[i])
             self.sw.accumulate('compute_gradients')
             self.update_parameters()
             self.sw.reset()
@@ -60,23 +60,23 @@ class ComputingNode:
             self.upload_parameters()
 
     def validating(self):
-        print("Valid accuracy: %.1f%%" % accuracy(self.graph.predict(self.valid_dataset), self.valid_labels))
+        print("Valid accuracy: %.1f%%" % accuracy(self.tensorgraph.predict(self.valid_dataset), self.valid_labels))
 
     def testing(self):
-        print("Test accuracy: %.1f%%" % accuracy(self.graph.predict(self.test_dataset), self.test_labels))
+        print("Test accuracy: %.1f%%" % accuracy(self.tensorgraph.predict(self.test_dataset), self.test_labels))
 
     def upload_parameters(self):
-        model = self.graph.get_parameters()
+        model = self.tensorgraph.get_parameters()
         self.sw.reset()
         text = comp.preprocess(model)
         self.sw.accumulate('preprocess')
-        self.status['GlobalStep'] = self.ps.upload(text)
+        self.status['GlobalStep'] = self.ps.upload(self.id, text)
         #self.ps.upload(text)
         self.sw.accumulate('upload')
     
     def apply_gradients(self, gradients):
         self.status['LocalStep'] += 1
-        self.graph.put_gradients(gradients)
+        self.tensorgraph.put_gradients(gradients)
 
     def update_parameters(self):
         # sync with ps
@@ -87,9 +87,9 @@ class ComputingNode:
             self.sw.reset()
             text = self.ps.download()
             self.sw.accumulate('download')
-            model = comp.deprocess(text, self.graph_shape)
+            model = comp.deprocess(text, self.tensorgraph_shape)
             self.sw.accumulate('deprocess')
-            self.graph.put_parameters(model)
+            self.tensorgraph.put_parameters(model)
             self.sw.accumulate('put para')
 
 def accuracy(predictions, labels):

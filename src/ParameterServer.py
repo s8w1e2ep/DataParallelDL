@@ -5,6 +5,7 @@ from CIFAR10_CNN import CIFAR10_CNN as CNN
 from Ann import ANN
 import threading
 from thrift_conn import init_server
+import flowpredictor as fprd
 
 def check_size(model):
     print "The total parameter size is %d bytes" % len(model)
@@ -14,12 +15,12 @@ def gpu_configure():
     return config
 
 class Dispatcher(object):
-    def __init__(self, graph):
+    def __init__(self, tensorgraph):
         self.update_count = 0
-        self.model = comp.preprocess(graph.get_parameters())
+        self.model = comp.preprocess(tensorgraph.get_parameters())
         self.lock = threading.Lock()
 
-    def upload(self, u_parameters):
+    def upload(self, cnid, u_parameters):
         self.lock.acquire()
         self.model = u_parameters
         self.update_count += 1
@@ -40,9 +41,9 @@ class ParameterServer(threading.Thread):
         self.ip = cluster_spec['ps'][ps_id]['IP']
         self.port = cluster_spec['ps'][ps_id]['Port']
         config = gpu_configure()
-        self.graph = CNN(config)
-        check_size(comp.preprocess(self.graph.get_parameters()))
-        handler = Dispatcher(self.graph)
+        self.tensorgraph = CNN(config)
+        check_size(comp.preprocess(self.tensorgraph.get_parameters()))
+        handler = Dispatcher(self.tensorgraph)
         self.server = init_server(self.ip, self.port, handler)
         super(ParameterServer, self).__init__() 
 
