@@ -41,7 +41,7 @@ class predictor:
         loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits, tf_labels))
     
         # Optimizer.
-        optimization = tf.train.GradientDescentOptimizer(0.001).minimize(loss)
+        optimization = tf.train.GradientDescentOptimizer(0.01).minimize(loss)
     
         # action
         predict = tf.nn.softmax(logits)
