@@ -15,13 +15,18 @@ def gpu_configure():
     return config
 
 class Dispatcher(object):
-    def __init__(self, tensorgraph):
+    def __init__(self, tensorgraph, predictor):
         self.update_count = 0
         self.model = comp.preprocess(tensorgraph.get_parameters())
+        self.predictor = predictor
         self.lock = threading.Lock()
+
+    def notifyToStart(self, cnid):
+        self.predictor.notify(cnid)
 
     def upload(self, cnid, u_parameters):
         self.lock.acquire()
+        self.predictor.prepare_to_train(cnid)
         self.model = u_parameters
         self.update_count += 1
         self.lock.release()
@@ -36,6 +41,10 @@ class Dispatcher(object):
     def getGlobalStatus(self):
         return self.update_count
 
+    def getUploadRecord(self):
+        self.predictor.show()
+        return
+
 class ParameterServer(threading.Thread):
     def __init__(self, ps_id, cluster_spec):
         self.ip = cluster_spec['ps'][ps_id]['IP']
@@ -43,7 +52,8 @@ class ParameterServer(threading.Thread):
         config = gpu_configure()
         self.tensorgraph = CNN(config)
         check_size(comp.preprocess(self.tensorgraph.get_parameters()))
-        handler = Dispatcher(self.tensorgraph)
+        self.predictor = fprd.Predictor([len(cluster_spec['cn'])* 4, 5, len(cluster_spec['cn'])])
+        handler = Dispatcher(self.tensorgraph, self.predictor)
         self.server = init_server(self.ip, self.port, handler)
         super(ParameterServer, self).__init__() 
 

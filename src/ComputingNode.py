@@ -37,6 +37,7 @@ class ComputingNode:
             raise ValueError('Batch size error')
         all_batch_data = [self.train_dataset[x:x+self.batch_size] for x in xrange(0, len(self.train_dataset), self.batch_size)]
         all_batch_label = [self.train_labels[x:x+self.batch_size] for x in xrange(0, len(self.train_labels), self.batch_size)]
+        self.ps.notifyToStart(self.id)
         self.update_parameters()
         for step in range(self.num_epochs):
             self.training(all_batch_data, all_batch_label)

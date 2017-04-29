@@ -16,6 +16,7 @@ def sig_handler(signum, frame):
 def kill_child_processes():
     ps = init_conn('127.0.0.1', 8888)
     print "update count : %d" % ps.getGlobalStatus()
+    ps.getUploadRecord()
     parent_pid = os.getpid()
     try:
         parent = psutil.Process(parent_pid)
