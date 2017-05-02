@@ -76,17 +76,21 @@ class Policy:
 
 queue_size = 3
 
-class Predictor():
-    def __init__(self, dim):
+class Predictor(threading.Thread):
+    def __init__(self, dim, shared_training_model, shared_mes_queue):
         self.dim = dim
         self.policy = Policy(dim[0], dim[1], dim[2])
-        # a queue
+        self.model = shared_training_model
+        # a shared mes_queue
+        self.mes_queue = shared_mes_queue
+        # a record queue
         self.arrive_queue = [[0 for i in range(dim[2])] for j in range(queue_size)]
         self.arrive_record = [0 for i in range(dim[2])]
         self.elapsed_record = [0. for i in range(dim[2])]
         self.state = self.__format_data()
         self.pnext = np.argmax(self.policy.predict(np.expand_dims(self.state, axis=0)))
         self.history = list()
+        super(Predictor, self).__init__()
 
     def __format_data(self):
         ts_data = normalize(self.arrive_record)
@@ -130,8 +134,6 @@ class Predictor():
         return np.argmax(self.policy.predict(np.expand_dims(self.state, axis=0)))
 
     def show(self):
-        #for item in self.history:
-        #    print "{}\t{}".format(item[0], item[1])
         self.batch_train()
             
     def batch_train(self):
@@ -147,6 +149,17 @@ class Predictor():
     def __testing(self, data, labels):
         predictions = self.policy.predict(data)
         print "Test accuracy: %.1f%%" % accuracy(predictions, labels)
+
+    def run(self):
+        while True:
+            mes = self.mes_queue.get()
+            if mes['mes_type'] == 'prepare_to_train':
+                self.prepare_to_train(mes['mes_content'])
+            elif mes['mes_type'] == 'notify':
+                self.notify(mes['mes_content'])
+            elif mes['mes_type'] == 'show':
+                self.show()
+            self.mes_queue.task_done()
 
 def accuracy(predictions, labels):
         return (100.0 * np.sum(np.argmax(predictions, 1) == np.argmax(labels, 1)) / predictions.shape[0])
@@ -170,7 +183,3 @@ def normalize(x):
     diff = last_finish - baseline
     diff = 1 if diff == 0 else diff
     return map(lambda i: (i-baseline) * 100 / diff * 0.01, x)
-
-if __name__ == "__main__":
-    prd = Predictor([8,4,4])
-    prd.prepare_to_train(0)
