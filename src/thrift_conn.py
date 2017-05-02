@@ -31,3 +31,23 @@ def init_conn(ip, port):
         weightsync_thrift = thriftpy.load("weightsync.thrift", module_name="weightsync_thrift")
     client = make_client(weightsync_thrift.WeightSync, ip, port)
     return client
+
+def init_receiver(ip, port, requestHandler):
+    if not os.path.exists("weightsync.thrift"):
+        f = _get_thrift_file()
+        weightsync_thrift = thriftpy.load(f.name, module_name="weightsync_thrift")
+        f.close()
+    else:
+        weightsync_thrift = thriftpy.load("weightsync.thrift", module_name="weightsync_thrift")
+    receiver = make_server(weightsync_thrift.WeightForward, requestHandler, ip, port)
+    return receiver
+
+def init_sender(ip, port):
+    if not os.path.exists("weightsync.thrift"):
+        f = _get_thrift_file()
+        weightsync_thrift = thriftpy.load(f.name, module_name="weightsync_thrift")
+        f.close()
+    else:
+        weightsync_thrift = thriftpy.load("weightsync.thrift", module_name="weightsync_thrift")
+    sender = make_client(weightsync_thrift.WeightForward, ip, port)
+    return sender

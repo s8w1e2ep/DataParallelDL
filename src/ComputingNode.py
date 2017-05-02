@@ -8,8 +8,10 @@ from CIFAR10_CNN import CIFAR10_CNN as CNN
 from Ann import ANN
 from StopWatch import StopWatch
 from thrift_conn import init_conn
+from thrift_conn import init_receiver
 from dataset import open_cifar10_dataset
 from dataset import open_mnist_dataset
+import threading
 
 def gpu_split(worker_num):
     proportion = 1. / (worker_num+1)
@@ -17,6 +19,23 @@ def gpu_split(worker_num):
     config = tf.ConfigProto(gpu_options=gpu_options)
     #config = tf.ConfigProto(device_count = {'GPU': 0})
     return config
+
+class Handler(object):
+    def __init__(self, sharedstatus, sharedmodel):
+        self.status = sharedstatus
+        self.model = sharedmodel
+
+    def forward(self, model):
+        self.status += 1
+        return self.status
+
+    def getGlobalStatus(self):
+        return self.status
+
+def receive(ip, port):
+    handler = Handler(0, "test")
+    receiver = init_receiver(ip, port, handler)
+    receiver.serve()
 
 class ComputingNode:
     def __init__(self, cn_id, cluster_spec, start, length, path=None, debug=0, fname='../log/cn{}_profiling.log'):
@@ -27,7 +46,11 @@ class ComputingNode:
         gpu_config = gpu_split(len(cluster_spec['cn']))
         self.tensorgraph = CNN(gpu_config)
         self.tensorgraph_shape = self.tensorgraph.get_configure()
-        self.ps = init_conn(cluster_spec['ps'][0]['IP'], cluster_spec['ps'][0]['Port']) 
+        self.ps = init_conn(cluster_spec['ps'][0]['IP'], cluster_spec['ps'][0]['Port'])
+        # start a model receiver service
+        service = threading.Thread(target = receive, args=(cluster_spec['cn'][cn_id]['IP'], cluster_spec['cn'][cn_id]['Port']))
+        service.daemon = True
+        service.start()
         self.num_epochs = 3
         self.sw = StopWatch()
         self.status = {'GlobalStep':-1, 'LocalStep':0,'Hit':0}
@@ -43,6 +66,9 @@ class ComputingNode:
             self.training(all_batch_data, all_batch_label)
             if step % 1 == 0:
                 self.validating()
+        self.terminate()
+
+    def terminate(self):
         self.sw.present()
         print "Hit count : %d" % self.status['Hit']
         print "Hit rate : %f" % (1000. * self.status['Hit'] / self.status['LocalStep'] * 0.001)

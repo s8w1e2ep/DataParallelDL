@@ -5,3 +5,8 @@ service WeightSync {
     i32 getGlobalStatus();
     void getUploadRecord();
 }
+
+service WeightForward {
+    i32 forward(1: i32 status, 2: string model);
+    i32 getGlobalStatus();
+}
