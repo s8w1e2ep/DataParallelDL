@@ -8,5 +8,4 @@ service WeightSync {
 
 service WeightForward {
     i32 forward(1: i32 status, 2: string model);
-    i32 getGlobalStatus();
 }
