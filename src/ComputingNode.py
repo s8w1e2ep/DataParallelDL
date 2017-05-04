@@ -12,6 +12,8 @@ from thrift_conn import init_receiver
 from dataset import open_cifar10_dataset
 from dataset import open_mnist_dataset
 import threading
+import external
+
 
 def gpu_split(worker_num):
     proportion = 1. / (worker_num+1)
@@ -25,16 +27,14 @@ class Handler(object):
         self.status = sharedstatus
         self.model = sharedmodel
 
-    def forward(self, model):
+    def forward(self, newstatus, newmodel):
         self.status += 1
-        return self.status
+        return 0
 
-    def getGlobalStatus(self):
-        return self.status
-
-def receive(ip, port):
-    handler = Handler(0, "test")
+def receive(ip, port, sharedstatus):
+    handler = Handler(sharedstatus, "test")
     receiver = init_receiver(ip, port, handler)
+    print 'Start receiver service(%s:%d)' % (ip, port)
     receiver.serve()
 
 class ComputingNode:
@@ -46,9 +46,13 @@ class ComputingNode:
         gpu_config = gpu_split(len(cluster_spec['cn']))
         self.tensorgraph = CNN(gpu_config)
         self.tensorgraph_shape = self.tensorgraph.get_configure()
+
+        # establish connection with parameter server to acquire store service
         self.ps = init_conn(cluster_spec['ps'][0]['IP'], cluster_spec['ps'][0]['Port'])
+
         # start a model receiver service
-        service = threading.Thread(target = receive, args=(cluster_spec['cn'][cn_id]['IP'], cluster_spec['cn'][cn_id]['Port']))
+        self.sharedstatus = external.Integer()
+        service = threading.Thread(target = receive, args=(cluster_spec['cn'][cn_id]['IP'], cluster_spec['cn'][cn_id]['Port'], self.sharedstatus))
         service.daemon = True
         service.start()
         self.num_epochs = 3
@@ -72,6 +76,7 @@ class ComputingNode:
         self.sw.present()
         print "Hit count : %d" % self.status['Hit']
         print "Hit rate : %f" % (1000. * self.status['Hit'] / self.status['LocalStep'] * 0.001)
+        print "shared status : %d" % int(self.sharedstatus)
 
     def training(self, all_batch_data, all_batch_label):
         for i in range(len(all_batch_data)):
