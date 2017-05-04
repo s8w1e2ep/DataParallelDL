@@ -137,6 +137,9 @@ class Predictor(threading.Thread):
             self.conn_table[cn_id] = init_sender(self.cluster_spec['cn'][cn_id]['IP'], self.cluster_spec['cn'][cn_id]['Port'])
         except Exception as e:
             print e
+            time.sleep(2)
+            print "reconnect to (%s:%d)" % (self.cluster_spec['cn'][cn_id]['IP'], self.cluster_spec['cn'][cn_id]['Port'])
+            self.conn_table[cn_id] = init_sender(self.cluster_spec['cn'][cn_id]['IP'], self.cluster_spec['cn'][cn_id]['Port'])
 
     def guess(self):
         return np.argmax(self.policy.predict(np.expand_dims(self.state, axis=0)))
