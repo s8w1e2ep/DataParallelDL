@@ -2,6 +2,7 @@ import tensorflow as tf
 import threading
 import time
 import numpy as np
+from thrift_conn import init_sender
 
 def gpu_configure():
     config = tf.ConfigProto(device_count = {'GPU': 0})
@@ -77,8 +78,9 @@ class Policy:
 queue_size = 3
 
 class Predictor(threading.Thread):
-    def __init__(self, dim, shared_training_model, shared_mes_queue):
+    def __init__(self, dim, cluster_spec, shared_training_model, shared_mes_queue):
         self.dim = dim
+        self.cluster_spec = cluster_spec
         self.policy = Policy(dim[0], dim[1], dim[2])
         self.model = shared_training_model
         # a shared mes_queue
@@ -90,7 +92,9 @@ class Predictor(threading.Thread):
         self.state = self.__format_data()
         self.pnext = np.argmax(self.policy.predict(np.expand_dims(self.state, axis=0)))
         self.history = list()
+        self.conn_table = dict()
         super(Predictor, self).__init__()
+        self.daemon = True
 
     def __format_data(self):
         ts_data = normalize(self.arrive_record)
@@ -128,14 +132,18 @@ class Predictor(threading.Thread):
         del ret
 
     def notify(self, cn_id):
-            self.arrive_record[cn_id] = time.time()
+        self.arrive_record[cn_id] = time.time()
+        try:
+            self.conn_table[cn_id] = init_sender(self.cluster_spec['cn'][cn_id]['IP'], self.cluster_spec['cn'][cn_id]['Port'])
+        except Exception as e:
+            print e
 
     def guess(self):
         return np.argmax(self.policy.predict(np.expand_dims(self.state, axis=0)))
 
     def show(self):
         self.batch_train()
-            
+
     def batch_train(self):
         input_set_size = len(self.history)
         data = [item[0] for item in self.history]
@@ -155,6 +163,11 @@ class Predictor(threading.Thread):
             mes = self.mes_queue.get()
             if mes['mes_type'] == 'prepare_to_train':
                 self.prepare_to_train(mes['mes_content'])
+                try:
+                    cnid = self.guess()
+                    self.conn_table[cnid].forward(0, "1234")
+                except Exception as e:
+                    print e
             elif mes['mes_type'] == 'notify':
                 self.notify(mes['mes_content'])
             elif mes['mes_type'] == 'show':
