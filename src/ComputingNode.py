@@ -20,19 +20,26 @@ def gpu_split(worker_num):
     gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=proportion)
     config = tf.ConfigProto(gpu_options=gpu_options)
     #config = tf.ConfigProto(device_count = {'GPU': 0})
+    #config = tf.ConfigProto()
+    #config.gpu_options.allow_growth=True
     return config
 
 class Handler(object):
-    def __init__(self, sharedstatus, sharedmodel):
-        self.status = sharedstatus
-        self.model = sharedmodel
+    def __init__(self):
+        self.status = -1
+        self.model = None
 
     def forward(self, newstatus, newmodel):
-        self.status += 1
-        return 0
+        self.status = newstatus
+        self.model = newmodel
+    
+    def getStatus(self):
+        return self.status
 
-def receive(ip, port, sharedstatus):
-    handler = Handler(sharedstatus, "test")
+    def getModel(self):
+        return self.model
+
+def receive(ip, port, handler):
     receiver = init_receiver(ip, port, handler)
     print 'Start receiver service(%s:%d)' % (ip, port)
     receiver.serve()
@@ -51,13 +58,13 @@ class ComputingNode:
         self.ps = init_conn(cluster_spec['ps'][0]['IP'], cluster_spec['ps'][0]['Port'])
 
         # start a model receiver service
-        self.sharedstatus = external.Integer()
-        service = threading.Thread(target = receive, args=(cluster_spec['cn'][cn_id]['IP'], cluster_spec['cn'][cn_id]['Port'], self.sharedstatus))
+        self.service_handler = Handler()
+        service = threading.Thread(target = receive, args=(cluster_spec['cn'][cn_id]['IP'], cluster_spec['cn'][cn_id]['Port'], self.service_handler))
         service.daemon = True
         service.start()
         self.num_epochs = 3
         self.sw = StopWatch()
-        self.status = {'GlobalStep':-1, 'LocalStep':0,'Hit':0}
+        self.status = {'GlobalStep':-1, 'LocalStep':0,'LocalHit':0, 'RemoteHit':0}
 
     def run(self):
         if not len(self.train_dataset) % self.batch_size == 0:
@@ -74,9 +81,9 @@ class ComputingNode:
 
     def terminate(self):
         self.sw.present()
-        print "Hit count : %d" % self.status['Hit']
-        print "Hit rate : %f" % (1000. * self.status['Hit'] / self.status['LocalStep'] * 0.001)
-        print "shared status : %d" % int(self.sharedstatus)
+        print "Hit count : %d(%d+%d)" % (self.status['LocalHit']+self.status['RemoteHit'], self.status['LocalHit'], self.status['RemoteHit'])
+        print "Hit rate : %f" % (1000. * (self.status['LocalHit']+self.status['RemoteHit']) / self.status['LocalStep'] * 0.001)
+        print "shared status : %d" % int(self.service_handler.getStatus())
 
     def training(self, all_batch_data, all_batch_label):
         for i in range(len(all_batch_data)):
@@ -103,7 +110,7 @@ class ComputingNode:
         text = comp.preprocess(model)
         self.sw.accumulate('preprocess')
         self.status['GlobalStep'] = self.ps.upload(self.id, text)
-        #self.ps.upload(text)
+        #self.ps.upload(self.id, text)
         self.sw.accumulate('upload')
     
     def apply_gradients(self, gradients):
@@ -114,15 +121,20 @@ class ComputingNode:
         # sync with ps
         gStatus = self.ps.getGlobalStatus()
         if gStatus == self.status['GlobalStep']:
-            self.status['Hit'] += 1
-        else:
-            self.sw.reset()
-            text = self.ps.download()
-            self.sw.accumulate('download')
-            model = comp.deprocess(text, self.tensorgraph_shape)
-            self.sw.accumulate('deprocess')
+            self.status['LocalHit'] += 1
+            return
+        if gStatus == self.service_handler.getStatus():
+            self.status['RemoteHit'] += 1
+            model = comp.deprocess(self.service_handler.getModel(), self.tensorgraph_shape)
             self.tensorgraph.put_parameters(model)
-            self.sw.accumulate('put para')
+            return 
+        self.sw.reset()
+        text = self.ps.download()
+        self.sw.accumulate('download')
+        model = comp.deprocess(text, self.tensorgraph_shape)
+        self.sw.accumulate('deprocess')
+        self.tensorgraph.put_parameters(model)
+        self.sw.accumulate('put para')
 
 def accuracy(predictions, labels):
     if labels.ndim == 1:

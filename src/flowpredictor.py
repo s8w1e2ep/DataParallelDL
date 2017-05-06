@@ -78,11 +78,12 @@ class Policy:
 queue_size = 3
 
 class Predictor(threading.Thread):
-    def __init__(self, dim, cluster_spec, shared_training_model, shared_mes_queue):
+    def __init__(self, dim, cluster_spec, store_service_handler, shared_mes_queue):
         self.dim = dim
         self.cluster_spec = cluster_spec
         self.policy = Policy(dim[0], dim[1], dim[2])
-        self.model = shared_training_model
+        # create a copy of store_service_handler in local
+        self.store_service_handler = store_service_handler
         # a shared mes_queue
         self.mes_queue = shared_mes_queue
         # a record queue
@@ -117,7 +118,7 @@ class Predictor(threading.Thread):
         label = np.zeros(self.dim[2])
         label[cn_id] = 1
         eLabel = np.expand_dims(label, axis=0)
-        #self.policy.train(eData, eLabel)
+        self.policy.train(eData, eLabel)
         self.history.append((data, label))
         # update records
         self.elapsed_record[cn_id] = current_time - self.arrive_record[cn_id]
@@ -164,17 +165,20 @@ class Predictor(threading.Thread):
     def run(self):
         while True:
             mes = self.mes_queue.get()
-            if mes['mes_type'] == 'prepare_to_train':
-                self.prepare_to_train(mes['mes_content'])
-                try:
-                    cnid = self.guess()
-                    self.conn_table[cnid].forward(0, "1234")
-                except Exception as e:
-                    print e
-            elif mes['mes_type'] == 'notify':
-                self.notify(mes['mes_content'])
-            elif mes['mes_type'] == 'show':
-                self.show()
+            try:
+                if mes['mes_type'] == 'prepare_to_train':
+                    self.prepare_to_train(mes['mes_content'])
+                    try:
+                        cnid = self.guess()
+                        self.conn_table[cnid].forward(self.store_service_handler.getGlobalStatus(), self.store_service_handler.getGlobalModel())
+                    except Exception as e:
+                        print e
+                elif mes['mes_type'] == 'notify':
+                    self.notify(mes['mes_content'])
+                elif mes['mes_type'] == 'show':
+                    self.show()
+            except Exception as e:
+                pass
             self.mes_queue.task_done()
 
 def accuracy(predictions, labels):
