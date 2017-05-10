@@ -1,12 +1,12 @@
 import compression as comp
 import tensorflow as tf
-#from MNIST_Cnn import MNIST_CNN as CNN
 from CIFAR10_CNN import CIFAR10_CNN as CNN
 from Ann import ANN
 import Queue
 import threading
 from thrift_conn import init_server
 import flowpredictor as fprd
+from cluster_specification import cluster_spec
 
 def check_size(model):
     print "The total parameter size is %d bytes" % len(model)
@@ -57,7 +57,7 @@ class Dispatcher(object):
         self.mes_queue.put(mes)
 
 class ParameterServer(threading.Thread):
-    def __init__(self, ps_id, cluster_spec, predict_service=True):
+    def __init__(self, ps_id, predict_service=True):
         self.ip = cluster_spec['ps'][ps_id]['IP']
         self.port = cluster_spec['ps'][ps_id]['Port']
         self.service_list = list()
@@ -95,18 +95,5 @@ class ParameterServer(threading.Thread):
             service()
 
 if __name__ == "__main__":
-    import sys
-    cluster_spec = dict()
-    # 4 machine 
-    cluster_spec[4] = {'ps':[{'IP':'127.0.0.1', 'Port':8888}],
-                    'cn':[{'IP':'127.0.0.1','Port':60000},
-                          {'IP':'127.0.0.1','Port':60001},
-                          {'IP':'127.0.0.1','Port':60002},
-                          {'IP':'127.0.0.1','Port':60003}]}
-    # 2 machine
-    cluster_spec[2] = {'ps':[{'IP':'127.0.0.1', 'Port':8888}],'cn':[{'IP':'127.0.0.1','Port':60000},{'IP':'127.0.0.1','Port':60001}]}
-    # 1 machine
-    cluster_spec[1] = {'ps':[{'IP':'127.0.0.1', 'Port':8888}],'cn':[{'IP':'127.0.0.1','Port':60000}]}
-
-    ps_node = ParameterServer(0, cluster_spec[int(sys.argv[1])])
+    ps_node = ParameterServer(0, cluster_spec)
     ps_node.run()

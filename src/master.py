@@ -9,6 +9,7 @@ import ParameterServer as ps
 import tensorflow as tf
 tf.logging.set_verbosity(tf.logging.ERROR)
 from thrift_conn import init_conn
+from cluster_specification import cluster_spec
 
 def sig_handler(signum, frame):
     kill_child_processes()
@@ -29,41 +30,28 @@ def kill_child_processes():
 def soft_exit(signum, frame):
     sys.exit(0)
 
-def ps_job(ps_id, cluster_spec):
+def ps_job(ps_id):
     signal.signal(signal.SIGINT, soft_exit)
-    ps_node = ps.ParameterServer(ps_id, cluster_spec)
+    ps_node = ps.ParameterServer(ps_id)
     ps_node.run()
 
-def cn_job(cn_id, cluster_spec, start, length):
+def cn_job(cn_id, start, length):
     signal.signal(signal.SIGINT, soft_exit)
-    cn_node = cn.ComputingNode(cn_id, cluster_spec, start, length)
+    cn_node = cn.ComputingNode(cn_id, start, length)
     elapsed_time = timeit.Timer(cn_node.run).timeit(number=1)
     print "cn_node %d : %f sec" % ((cn_id), elapsed_time)
     #cn_node.run()
 
 if __name__ == '__main__':
 
-    cluster_spec = dict()
-    # 4 machine 
-    cluster_spec[4] = {'ps':[{'IP':'127.0.0.1', 'Port':8888}],
-                    'cn':[{'IP':'127.0.0.1','Port':60000},
-                          {'IP':'127.0.0.1','Port':60001},
-                          {'IP':'127.0.0.1','Port':60002},
-                          {'IP':'127.0.0.1','Port':60003}]}
-    # 2 machine
-    cluster_spec[2] = {'ps':[{'IP':'127.0.0.1', 'Port':8888}],'cn':[{'IP':'127.0.0.1','Port':60000},{'IP':'127.0.0.1','Port':60001}]}
-    # 1 machine
-    cluster_spec[1] = {'ps':[{'IP':'127.0.0.1', 'Port':8888}],'cn':[{'IP':'127.0.0.1','Port':60000}]}
-    
-    machine_num = int(sys.argv[1])
-    ps_num = len(cluster_spec[machine_num]['ps'])
-    cn_num = len(cluster_spec[machine_num]['cn'])
+    ps_num = len(cluster_spec['ps'])
+    cn_num = len(cluster_spec['cn'])
     ps_processes = list()
     cn_processes = list()
 
     # create parameter servers
     for i in range(ps_num):
-        process = multiprocessing.Process(target=ps_job, args=(i, cluster_spec[machine_num]))
+        process = multiprocessing.Process(target=ps_job, args=(i,))
         process.start()
         ps_processes.append(process)
 
@@ -71,7 +59,7 @@ if __name__ == '__main__':
     training_set_size = 20000
     length = training_set_size / cn_num
     for i in range(cn_num):
-        process = multiprocessing.Process(target=cn_job, args=(i, cluster_spec[machine_num], i*length, length))
+        process = multiprocessing.Process(target=cn_job, args=(i, i*length, length))
         process.start()
         cn_processes.append(process)
 

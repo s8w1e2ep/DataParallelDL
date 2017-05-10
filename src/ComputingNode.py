@@ -3,9 +3,7 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 import numpy as np 
 import tensorflow as tf
 import compression as comp
-#from MNIST_Cnn import MNIST_CNN as CNN
 from CIFAR10_CNN import CIFAR10_CNN as CNN
-from Ann import ANN
 from StopWatch import StopWatch
 from thrift_conn import init_conn
 from thrift_conn import init_receiver
@@ -13,7 +11,7 @@ from dataset import open_cifar10_dataset
 from dataset import open_mnist_dataset
 import threading
 import external
-
+from cluster_specification import cluster_spec
 
 def gpu_split(worker_num):
     proportion = 1. / (worker_num+1)
@@ -45,11 +43,11 @@ def receive(ip, port, handler):
     receiver.serve()
 
 class ComputingNode:
-    def __init__(self, cn_id, cluster_spec, start, length, path=None, debug=0, fname='../log/cn{}_profiling.log'):
+    def __init__(self, cn_id, start, length, receive_service=True):
         self.id = cn_id
         self.batch_size = 200
+        self.num_epochs = 3
         self.train_dataset, self.train_labels, self.valid_dataset, self.valid_labels, self.test_dataset, self.test_labels = open_cifar10_dataset(start,length)
-        #self.train_dataset, self.train_labels, self.valid_dataset, self.valid_labels, self.test_dataset, self.test_labels = open_mnist_dataset(start,length)
         gpu_config = gpu_split(len(cluster_spec['cn']))
         self.tensorgraph = CNN(gpu_config)
         self.tensorgraph_shape = self.tensorgraph.get_configure()
@@ -57,12 +55,13 @@ class ComputingNode:
         # establish connection with parameter server to acquire store service
         self.ps = init_conn(cluster_spec['ps'][0]['IP'], cluster_spec['ps'][0]['Port'])
 
-        # start a model receiver service
-        self.service_handler = Handler()
-        service = threading.Thread(target = receive, args=(cluster_spec['cn'][cn_id]['IP'], cluster_spec['cn'][cn_id]['Port'], self.service_handler))
-        service.daemon = True
-        service.start()
-        self.num_epochs = 3
+        if receive_service:
+            # start a model receiver service
+            self.service_handler = Handler()
+            service = threading.Thread(target = receive, args=(cluster_spec['cn'][cn_id]['IP'], cluster_spec['cn'][cn_id]['Port'], self.service_handler))
+            service.daemon = True
+            service.start()
+        
         self.sw = StopWatch()
         self.status = {'GlobalStep':-1, 'LocalStep':0,'LocalHit':0, 'RemoteHit':0}
 
