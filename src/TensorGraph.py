@@ -15,6 +15,15 @@ class TensorGraph:
             self.grab_op = tf.global_variables()
         self.session = tf.Session(config=config, graph=self.graph)
         self.init_parameters()
+    
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.session.close()
+        del self.graph
+        del self.session
+        return self
 
     @abstractmethod
     def create_variable(self):
@@ -89,6 +98,3 @@ class TensorGraph:
         paras = self.get_parameters()
         graph_shape = [para.shape for para in paras]
         return graph_shape
-
-    def __exit__(self):
-        self.session.close()

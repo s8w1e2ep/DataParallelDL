@@ -55,18 +55,22 @@ class Dispatcher(object):
 
     def __pass_to_queue(self, mes):
         self.mes_queue.put(mes)
-        pass
 
 class ParameterServer(threading.Thread):
-    def __init__(self, ps_id, cluster_spec):
+    def __init__(self, ps_id, cluster_spec, predict_service=True):
         self.ip = cluster_spec['ps'][ps_id]['IP']
         self.port = cluster_spec['ps'][ps_id]['Port']
+        self.service_list = list()
+        if predict_service:
+            self.service_list.append(self.start_predict_service)
+        self.service_list.append(self.start_store_service)
 
         # training model
         config = gpu_configure()
-        self.tensorgraph = CNN(config)
-        check_size(comp.preprocess(self.tensorgraph.get_parameters()))
-        self.model = comp.preprocess(self.tensorgraph.get_parameters())
+        with CNN(config) as cnn_graph:
+            compressed_parameters = comp.preprocess(cnn_graph.get_parameters())
+            check_size(compressed_parameters)
+            self.model = compressed_parameters
 
         # message queue used between store service and predict service
         self.mes_queue = Queue.Queue(maxsize=0)
@@ -87,10 +91,22 @@ class ParameterServer(threading.Thread):
         self.predictor.start()
 
     def run(self):
-        self.start_predict_service()
-        self.start_store_service()
+        for service in self.service_list:
+            service()
 
 if __name__ == "__main__":
-    cluster_spec = {'ps':[{'IP':'127.0.0.1', 'Port':8888}],'cn':[{'IP':'127.0.0.1','Port':60000},{'IP':'127.0.0.1','Port':60001}]}
-    ps_node = ParameterServer(0, cluster_spec)
+    import sys
+    cluster_spec = dict()
+    # 4 machine 
+    cluster_spec[4] = {'ps':[{'IP':'127.0.0.1', 'Port':8888}],
+                    'cn':[{'IP':'127.0.0.1','Port':60000},
+                          {'IP':'127.0.0.1','Port':60001},
+                          {'IP':'127.0.0.1','Port':60002},
+                          {'IP':'127.0.0.1','Port':60003}]}
+    # 2 machine
+    cluster_spec[2] = {'ps':[{'IP':'127.0.0.1', 'Port':8888}],'cn':[{'IP':'127.0.0.1','Port':60000},{'IP':'127.0.0.1','Port':60001}]}
+    # 1 machine
+    cluster_spec[1] = {'ps':[{'IP':'127.0.0.1', 'Port':8888}],'cn':[{'IP':'127.0.0.1','Port':60000}]}
+
+    ps_node = ParameterServer(0, cluster_spec[int(sys.argv[1])])
     ps_node.run()
