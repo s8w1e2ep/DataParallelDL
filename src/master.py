@@ -15,7 +15,7 @@ def sig_handler(signum, frame):
     kill_child_processes()
 
 def kill_child_processes():
-    ps = init_conn('127.0.0.1', 8888)
+    ps = init_conn(cluster_spec['ps'][0]['IP'], cluster_spec['ps'][0]['Port'])
     print "update count : %d" % ps.getGlobalStatus()
     ps.getUploadRecord()
     parent_pid = os.getpid()
@@ -30,7 +30,8 @@ def kill_child_processes():
 def soft_exit(signum, frame):
     sys.exit(0)
 
-opt = False
+opt = True
+bg = True
 
 def ps_job(ps_id):
     signal.signal(signal.SIGINT, soft_exit)
@@ -39,7 +40,7 @@ def ps_job(ps_id):
 
 def cn_job(cn_id, start, length):
     signal.signal(signal.SIGINT, soft_exit)
-    cn_node = cn.ComputingNode(cn_id, start, length, opt)
+    cn_node = cn.ComputingNode(cn_id, start, length, opt, bg)
     elapsed_time = timeit.Timer(cn_node.run).timeit(number=1)
     print "cn_node %d : %f sec" % ((cn_id), elapsed_time)
     #cn_node.run()

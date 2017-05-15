@@ -17,9 +17,6 @@ def gpu_split(worker_num):
     proportion = 1. / (worker_num+1)
     gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=proportion)
     config = tf.ConfigProto(gpu_options=gpu_options)
-    #config = tf.ConfigProto(device_count = {'GPU': 0})
-    #config = tf.ConfigProto()
-    #config.gpu_options.allow_growth=True
     return config
 
 class Handler(object):
@@ -43,7 +40,7 @@ def receive(ip, port, handler):
     receiver.serve()
 
 class ComputingNode:
-    def __init__(self, cn_id, start, length, receive_service=True):
+    def __init__(self, cn_id, start, length, receive_service=True, uploading_in_background=True):
         self.id = cn_id
         self.batch_size = 200
         self.num_epochs = 3
@@ -64,7 +61,14 @@ class ComputingNode:
             self.update_parameters = self.update_parameters_opt
         else:
             self.update_parameters = self.update_parameters_ori
-        
+
+        # switch between origin or optimized mode for uploading parameters
+        self.lock = threading.Lock()
+        if uploading_in_background:
+            self.upload_parameters = self.upload_parameters_bg
+        else:
+            self.upload_parameters = self.upload_parameters_ori
+
         self.sw = StopWatch()
         self.status = {'GlobalStep':-1, 'LocalStep':0,'LocalHit':0, 'RemoteHit':0}
 
@@ -105,15 +109,15 @@ class ComputingNode:
     def testing(self):
         print("Test accuracy: %.1f%%" % accuracy(self.tensorgraph.predict(self.test_dataset), self.test_labels))
 
-    def upload_parameters(self):
+    def upload_parameters_ori(self):
         model = self.tensorgraph.get_parameters()
-        self.sw.reset()
         text = comp.preprocess(model)
-        self.sw.accumulate('preprocess')
         self.status['GlobalStep'] = self.ps.upload(self.id, text)
-        #self.ps.upload(self.id, text)
-        self.sw.accumulate('upload')
-    
+
+    def upload_parameters_bg(self):
+        upload_bg = threading.Thread(target=self.upload_parameters_ori)
+        upload_bg.start()
+
     def apply_gradients(self, gradients):
         self.status['LocalStep'] += 1
         self.tensorgraph.put_gradients(gradients)
@@ -128,12 +132,17 @@ class ComputingNode:
             self.status['RemoteHit'] += 1
             model = comp.deprocess(self.service_handler.getModel(), self.tensorgraph_shape)
             self.tensorgraph.put_parameters(model)
-            return 
+            return
         self.sw.reset()
-        text = self.ps.download()
-        self.sw.accumulate('download')
-        model = comp.deprocess(text, self.tensorgraph_shape)
-        self.sw.accumulate('deprocess')
+        try:
+            text = self.ps.download()
+            self.sw.accumulate('download')
+            model = comp.deprocess(text, self.tensorgraph_shape)
+            self.sw.accumulate('deprocess')
+        except:
+            del self.ps
+            self.ps = init_conn(cluster_spec['ps'][0]['IP'], cluster_spec['ps'][0]['Port'])
+            return
         self.tensorgraph.put_parameters(model)
         self.sw.accumulate('put para')
 
@@ -144,7 +153,7 @@ class ComputingNode:
         model = comp.deprocess(text, self.tensorgraph_shape)
         self.sw.accumulate('deprocess')
         self.tensorgraph.put_parameters(model)
-        self.sw.accumulate('put para')
+        self.sw.accumulate('put para') 
 
 def accuracy(predictions, labels):
     if labels.ndim == 1:
