@@ -30,14 +30,16 @@ def kill_child_processes():
 def soft_exit(signum, frame):
     sys.exit(0)
 
+opt = False
+
 def ps_job(ps_id):
     signal.signal(signal.SIGINT, soft_exit)
-    ps_node = ps.ParameterServer(ps_id)
+    ps_node = ps.ParameterServer(ps_id, opt)
     ps_node.run()
 
 def cn_job(cn_id, start, length):
     signal.signal(signal.SIGINT, soft_exit)
-    cn_node = cn.ComputingNode(cn_id, start, length)
+    cn_node = cn.ComputingNode(cn_id, start, length, opt)
     elapsed_time = timeit.Timer(cn_node.run).timeit(number=1)
     print "cn_node %d : %f sec" % ((cn_id), elapsed_time)
     #cn_node.run()

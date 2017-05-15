@@ -95,5 +95,5 @@ class ParameterServer(threading.Thread):
             service()
 
 if __name__ == "__main__":
-    ps_node = ParameterServer(0, cluster_spec)
+    ps_node = ParameterServer(0, False)
     ps_node.run()

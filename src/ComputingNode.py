@@ -61,6 +61,9 @@ class ComputingNode:
             service = threading.Thread(target = receive, args=(cluster_spec['cn'][cn_id]['IP'], cluster_spec['cn'][cn_id]['Port'], self.service_handler))
             service.daemon = True
             service.start()
+            self.update_parameters = self.update_parameters_opt
+        else:
+            self.update_parameters = self.update_parameters_ori
         
         self.sw = StopWatch()
         self.status = {'GlobalStep':-1, 'LocalStep':0,'LocalHit':0, 'RemoteHit':0}
@@ -82,7 +85,6 @@ class ComputingNode:
         self.sw.present()
         print "Hit count : %d(%d+%d)" % (self.status['LocalHit']+self.status['RemoteHit'], self.status['LocalHit'], self.status['RemoteHit'])
         print "Hit rate : %f" % (1000. * (self.status['LocalHit']+self.status['RemoteHit']) / self.status['LocalStep'] * 0.001)
-        print "shared status : %d" % int(self.service_handler.getStatus())
 
     def training(self, all_batch_data, all_batch_label):
         for i in range(len(all_batch_data)):
@@ -116,7 +118,7 @@ class ComputingNode:
         self.status['LocalStep'] += 1
         self.tensorgraph.put_gradients(gradients)
 
-    def update_parameters(self):
+    def update_parameters_opt(self):
         # sync with ps
         gStatus = self.ps.getGlobalStatus()
         if gStatus == self.status['GlobalStep']:
@@ -127,6 +129,15 @@ class ComputingNode:
             model = comp.deprocess(self.service_handler.getModel(), self.tensorgraph_shape)
             self.tensorgraph.put_parameters(model)
             return 
+        self.sw.reset()
+        text = self.ps.download()
+        self.sw.accumulate('download')
+        model = comp.deprocess(text, self.tensorgraph_shape)
+        self.sw.accumulate('deprocess')
+        self.tensorgraph.put_parameters(model)
+        self.sw.accumulate('put para')
+
+    def update_parameters_ori(self):
         self.sw.reset()
         text = self.ps.download()
         self.sw.accumulate('download')
