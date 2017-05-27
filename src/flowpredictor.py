@@ -172,7 +172,7 @@ class Predictor(threading.Thread):
                         cnid = self.guess()
                         self.conn_table[cnid].forward(self.store_service_handler.getGlobalStatus(), self.store_service_handler.getGlobalModel())
                     except Exception as e:
-                        print e
+                        pass
                 elif mes['mes_type'] == 'notify':
                     self.notify(mes['mes_content'])
                 elif mes['mes_type'] == 'show':

@@ -1,12 +1,12 @@
 import compression as comp
 import tensorflow as tf
 from CIFAR10_CNN import CIFAR10_CNN as CNN
-from Ann import ANN
 import Queue
 import threading
 from thrift_conn import init_server
 import flowpredictor as fprd
 from cluster_specification import cluster_spec
+import logging
 
 def check_size(model):
     print "The total parameter size is %d bytes" % len(model)
@@ -32,8 +32,9 @@ class Dispatcher(object):
         self.__pass_to_queue(mes)
         self.model = u_parameters
         self.update_count += 1
+        status = self.update_count
         self.lock.release()
-        return self.update_count
+        return status
 
     def download(self):
         self.lock.acquire()
@@ -42,10 +43,16 @@ class Dispatcher(object):
         return model
 
     def getGlobalStatus(self):
-        return self.update_count
+        self.lock.acquire()
+        status = self.update_count
+        self.lock.release()
+        return status
 
     def getGlobalModel(self):
-        return self.model
+        self.lock.acquire()
+        model = self.model
+        self.lock.release()
+        return model
 
     def getUploadRecord(self):
         mes = {'mes_type':'show', 'mes_content':None}
@@ -56,6 +63,7 @@ class Dispatcher(object):
     def __pass_to_queue(self, mes):
         self.mes_queue.put(mes)
 
+logging.basicConfig(level=logging.INFO)
 class ParameterServer(threading.Thread):
     def __init__(self, ps_id, predict_service=True):
         self.ip = cluster_spec['ps'][ps_id]['IP']
@@ -95,5 +103,5 @@ class ParameterServer(threading.Thread):
             service()
 
 if __name__ == "__main__":
-    ps_node = ParameterServer(0, False)
+    ps_node = ParameterServer(0, True)
     ps_node.run()

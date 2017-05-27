@@ -77,6 +77,8 @@ class ComputingNode:
             raise ValueError('Batch size error')
         all_batch_data = [self.train_dataset[x:x+self.batch_size] for x in xrange(0, len(self.train_dataset), self.batch_size)]
         all_batch_label = [self.train_labels[x:x+self.batch_size] for x in xrange(0, len(self.train_labels), self.batch_size)]
+        del self.train_dataset
+        del self.train_labels
         self.ps.notifyToStart(self.id)
         self.update_parameters()
         for step in range(self.num_epochs):
@@ -102,6 +104,7 @@ class ComputingNode:
             self.sw.accumulate('apply_gradients')
             # update the gradients to the ps
             self.upload_parameters()
+            self.sw.accumulate('upload_parameters')
 
     def validating(self):
         print("Valid accuracy: %.1f%%" % accuracy(self.tensorgraph.predict(self.valid_dataset), self.valid_labels))
@@ -110,9 +113,11 @@ class ComputingNode:
         print("Test accuracy: %.1f%%" % accuracy(self.tensorgraph.predict(self.test_dataset), self.test_labels))
 
     def upload_parameters_ori(self):
+        self.lock.acquire()
         model = self.tensorgraph.get_parameters()
         text = comp.preprocess(model)
         self.status['GlobalStep'] = self.ps.upload(self.id, text)
+        self.lock.release()
 
     def upload_parameters_bg(self):
         upload_bg = threading.Thread(target=self.upload_parameters_ori)
@@ -124,7 +129,10 @@ class ComputingNode:
 
     def update_parameters_opt(self):
         # sync with ps
-        gStatus = self.ps.getGlobalStatus()
+        try:
+            gStatus = self.ps.getGlobalStatus()
+        except:
+            gStatus = -1
         if gStatus == self.status['GlobalStep']:
             self.status['LocalHit'] += 1
             return
@@ -143,17 +151,23 @@ class ComputingNode:
             del self.ps
             self.ps = init_conn(cluster_spec['ps'][0]['IP'], cluster_spec['ps'][0]['Port'])
             return
+        self.sw.reset()
         self.tensorgraph.put_parameters(model)
         self.sw.accumulate('put para')
 
     def update_parameters_ori(self):
         self.sw.reset()
-        text = self.ps.download()
-        self.sw.accumulate('download')
-        model = comp.deprocess(text, self.tensorgraph_shape)
-        self.sw.accumulate('deprocess')
+        try:
+            text = self.ps.download()
+            self.sw.accumulate('download')
+            model = comp.deprocess(text, self.tensorgraph_shape)
+            self.sw.accumulate('deprocess')
+        except:
+            del self.ps
+            self.ps = init_conn(cluster_spec['ps'][0]['IP'], cluster_spec['ps'][0]['Port'])
+            return
         self.tensorgraph.put_parameters(model)
-        self.sw.accumulate('put para') 
+        self.sw.accumulate('put para')
 
 def accuracy(predictions, labels):
     if labels.ndim == 1:
