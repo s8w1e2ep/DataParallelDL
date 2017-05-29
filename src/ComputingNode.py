@@ -107,7 +107,8 @@ class ComputingNode:
             self.sw.accumulate('upload_parameters')
 
     def validating(self):
-        print("Valid accuracy: %.1f%%" % accuracy(self.tensorgraph.predict(self.valid_dataset), self.valid_labels))
+        print "Valid accuracy: %.1f%%" % accuracy(self.tensorgraph.predict(self.valid_dataset), self.valid_labels),
+        print "\tLoss : " , self.tensorgraph.get_loss(self.valid_dataset, self.valid_labels)
 
     def testing(self):
         print("Test accuracy: %.1f%%" % accuracy(self.tensorgraph.predict(self.test_dataset), self.test_labels))
