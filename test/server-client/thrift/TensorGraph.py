@@ -1,118 +1,100 @@
 import tensorflow as tf
-
-image_size = 28
-num_labels = 10
-num_hidden_neurons = 100
+from abc import ABCMeta, abstractmethod
+import numpy as np
 
 class TensorGraph:
+    __metaclass__= ABCMeta
     def __init__(self, config=None):
-        self.session = tf.Session(config=config)
-        self.parameters = self.create_variable()
-        self.input_placeholders = self.create_input_placeholder()
-        self.parameter_placeholders = self.create_parameter_placeholder()
-        self.loss, self.gradient_pairs, self.apply_gradients, self.assign_parameters, self.optimization, self.prediction = self.create_graph()
-        self.init_parameters(path=None)
+        self.graph = tf.Graph()
+        with self.graph.as_default():
+            self.parameters = self.create_variable()
+            self.input_placeholders = self.create_input_placeholder()
+            self.parameter_placeholders = self.create_parameter_placeholder()
+            self.graph_op = self.create_graph()
+            self.init_op = tf.global_variables_initializer()
+            self.grab_op = tf.global_variables()
+        self.session = tf.Session(config=config, graph=self.graph)
+        self.init_parameters()
+    
+    def __enter__(self):
+        return self
 
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.session.close()
+        del self.graph
+        del self.session
+        return self
+
+    @abstractmethod
     def create_variable(self):
-        
-        weights1 = tf.Variable(tf.truncated_normal([image_size * image_size, num_hidden_neurons]))
-        biases1 = tf.Variable(tf.zeros([num_hidden_neurons]))
-        weights2 = tf.Variable(tf.truncated_normal([num_hidden_neurons, num_labels]))
-        biases2 = tf.Variable(tf.zeros([num_labels]))
+        pass
 
-        return weights1, biases1, weights2, biases2
-
+    @abstractmethod
     def create_input_placeholder(self):
-        tf_dataset = tf.placeholder(tf.float32, shape=(None, image_size * image_size))
-        tf_labels = tf.placeholder(tf.float32, shape=(None, num_labels))
-        tf_test_dataset = tf.placeholder(tf.float32, shape=(None, image_size * image_size))
+        pass
 
-        return tf_dataset, tf_labels, tf_test_dataset
-
+    @abstractmethod
     def create_parameter_placeholder(self):
-        w1_space = tf.placeholder(tf.float32, shape=(image_size * image_size, num_hidden_neurons))
-        b1_space = tf.placeholder(tf.float32, shape=(num_hidden_neurons))
-        w2_space = tf.placeholder(tf.float32, shape=(num_hidden_neurons, num_labels))
-        b2_space = tf.placeholder(tf.float32, shape=(num_labels))
+        pass
 
-        return w1_space, b1_space, w2_space, b2_space
-
+    @abstractmethod
     def create_graph(self):
-        tf_dataset, tf_labels, tf_test_dataset = self.input_placeholders
-        weights1, biases1, weights2, biases2 = self.parameters
-        w1_space, b1_space, w2_space, b2_space = self.parameter_placeholders
+        pass
 
-        tf_train_h_dataset = tf.matmul(tf_dataset, weights1) + biases1
-        tf_train_h_dataset = tf.nn.relu(tf_train_h_dataset)
-        logits = tf.matmul(tf_train_h_dataset, weights2) + biases2
-        loss = tf.reduce_mean(
-          tf.nn.softmax_cross_entropy_with_logits(logits, tf_labels))
-
-        optimizer = tf.train.GradientDescentOptimizer(0.5)
-        gradient_pairs = optimizer.compute_gradients(loss)
-        optimization = optimizer.minimize(loss)
-        prediction = tf.nn.softmax(tf.matmul(tf.nn.relu(tf.matmul(tf_test_dataset, weights1) + biases1), weights2) + biases2)
-
-        apply_gradients = [weights1.assign(weights1-w1_space),
-                          weights2.assign(weights2-w2_space),
-                          biases1.assign(biases1-b1_space),
-                          biases2.assign(biases2-b2_space)]
-        assign_parameters = [weights1.assign(w1_space),
-                            weights2.assign(w2_space),
-                            biases1.assign(b1_space),
-                            biases2.assign(b2_space)]
-
-        return loss, gradient_pairs, apply_gradients, assign_parameters, optimization, prediction
-
-    def init_parameters(self, path):
+    def init_parameters(self, path=None):
         if path is None:
-            self.session.run(tf.initialize_all_variables())
+            self.session.run(self.init_op)
         else:
             self.load(path)
 
     def get_parameters(self):
-        # tensorflow APIs in different version
-        variables = tf.global_variables()
-        #variables = tf.GraphKeys.GLOBAL_VARIABLES()
-        #variables = tf.all_variables()
-        return self.session.run(variables)
+        paras = self.session.run(self.grab_op)
+        return paras[:len(self.parameters)]
 
     def predict(self, data):
-        _, _, test_data = self.input_placeholders
+        prediction =self.graph_op[5]
+        test_data = self.input_placeholders[0]
         feed_dict = dict()
         feed_dict[test_data] = data
-        return self.session.run(self.prediction, feed_dict=feed_dict)
+        return self.session.run(prediction, feed_dict=feed_dict)
 
     def optimize(self, data, label):
-        t_data, t_label, _ = self.input_placeholders
+        optimization =self.graph_op[4]
+        t_data = self.input_placeholders[0]
+        t_label = self.input_placeholders[1]
         feed_dict = dict()
         feed_dict[t_data] = data
         feed_dict[t_label] = label
-        self.session.run(self.optimization, feed_dict=feed_dict)
+        self.session.run(optimization, feed_dict=feed_dict)
 
     def get_gradients(self, data, label):
-        t_data, t_label, _ = self.input_placeholders
+        compute_gradients = self.graph_op[1]
+        t_data = self.input_placeholders[0] 
+        t_label = self.input_placeholders[1]
         feed_dict = dict()
         feed_dict[t_data] = data
         feed_dict[t_label] = label
-        return self.session.run(self.gradient_pairs, feed_dict=feed_dict)
+        gradient_pairs = self.session.run(compute_gradients, feed_dict=feed_dict)
+        gradients = list()
+        for gradient in gradient_pairs:
+            gradients.append(gradient[0])
+        return gradients
 
     def put_gradients(self, gradients):
+        apply_gradients =self.graph_op[2]
         feed_dict = dict()
         for i, gradient_name in enumerate(self.parameter_placeholders):
             feed_dict[gradient_name] = gradients[i]
-        self.session.run(self.apply_gradients, feed_dict=feed_dict)
+        self.session.run(apply_gradients, feed_dict=feed_dict)
    
     def put_parameters(self, parameters):
+        assign_parameters = self.graph_op[3]
         feed_dict = dict()
         for i, parameter_name in enumerate(self.parameter_placeholders):
             feed_dict[parameter_name] = parameters[i]
-        self.session.run(self.assign_parameters, feed_dict=feed_dict)
- 
-    def __exit__(self):
-        self.session.close()
+        self.session.run(assign_parameters, feed_dict=feed_dict)
 
-if __name__ == '__main__':
-    tg = TensorGraph()
-    print tg.get_parameters()
-    
+    def get_configure(self):
+        paras = self.get_parameters()
+        graph_shape = [para.shape for para in paras]
+        return graph_shape
