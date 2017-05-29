@@ -118,8 +118,9 @@ class Predictor(threading.Thread):
         label = np.zeros(self.dim[2])
         label[cn_id] = 1
         eLabel = np.expand_dims(label, axis=0)
-        self.policy.train(eData, eLabel)
         self.history.append((data, label))
+        # mini-batch or online training- 1: online, >=1: batch
+        self.batch_train(5)
         # update records
         self.elapsed_record[cn_id] = current_time - self.arrive_record[cn_id]
         self.arrive_record[cn_id] = current_time
@@ -146,9 +147,15 @@ class Predictor(threading.Thread):
         return np.argmax(self.policy.predict(np.expand_dims(self.state, axis=0)))
 
     def show(self):
-        self.batch_train()
+        self.overall_batch_train()
 
-    def batch_train(self):
+    def batch_train(self, batch_size):
+        batch = self.history[-batch_size:]
+        data = [item[0] for item in batch]
+        labels = [item[1] for item in batch]
+        self.policy.train(data, labels)
+
+    def overall_batch_train(self):
         input_set_size = len(self.history)
         data = [item[0] for item in self.history]
         labels = [item[1] for item in self.history]
