@@ -38,11 +38,11 @@ def cn_job(cn_id, start, length, predict_service, background_uploading):
     cn_node = cn.ComputingNode(cn_id, start, length, predict_service, background_uploading)
     elapsed_time = timeit.Timer(cn_node.run).timeit(number=1)
     print "cn_node %d : %f sec" % ((cn_id), elapsed_time)
-    #cn_node.run()
 
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description='Argument Checker')
+    parser.add_argument("-s", "--server", type=bool, help="start a parameter server",  default=False)
     parser.add_argument("-p", "--predict", type=bool, help="enable predict service", default=False)
     parser.add_argument("-b", "--background", type=bool, help="upload parameters in background", default=False)
     args = parser.parse_args()
@@ -53,10 +53,11 @@ if __name__ == '__main__':
     cn_processes = list()
 
     # create parameter servers
-    for i in range(ps_num):
-        process = multiprocessing.Process(target=ps_job, args=(i,args.predict))
-        process.start()
-        ps_processes.append(process)
+    if args.server:
+        for i in range(ps_num):
+            process = multiprocessing.Process(target=ps_job, args=(i,args.predict))
+            process.start()
+            ps_processes.append(process)
 
     # create computing nodes
     training_set_size = 30000
