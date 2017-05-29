@@ -15,10 +15,7 @@ import argparse
 def sig_handler(signum, frame):
     kill_child_processes()
 
-def kill_child_processes():
-    ps = init_conn(cluster_spec['ps'][0]['IP'], cluster_spec['ps'][0]['Port'])
-    print "update count : %d" % ps.getGlobalStatus()
-    ps.getUploadRecord()
+def kill_child_processes(): 
     parent_pid = os.getpid()
     try:
         parent = psutil.Process(parent_pid)
@@ -62,7 +59,7 @@ if __name__ == '__main__':
         ps_processes.append(process)
 
     # create computing nodes
-    training_set_size = 20000
+    training_set_size = 30000
     length = training_set_size / cn_num
     for i in range(cn_num):
         process = multiprocessing.Process(target=cn_job, args=(i, i*length, length, args.predict, args.background))
@@ -73,5 +70,11 @@ if __name__ == '__main__':
 
     # wait for training is done
     for i in range(cn_num):
-        cn_processes[i].join() 
+        cn_processes[i].join()
+
+    ps = init_conn(cluster_spec['ps'][0]['IP'], cluster_spec['ps'][0]['Port'])
+    print "update count : %d" % ps.getGlobalStatus()
+    if args.predict:
+        ps.getUploadRecord()
+
     kill_child_processes()
