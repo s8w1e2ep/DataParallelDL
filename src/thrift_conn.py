@@ -20,6 +20,7 @@ def init_server(ip, port, requestHandler):
     else:
         weightsync_thrift = thriftpy.load("weightsync.thrift", module_name="weightsync_thrift")
     server = make_server(weightsync_thrift.WeightSync, requestHandler, ip, port)
+    server.trans.client_timeout = None
     return server
 
 def init_conn(ip, port):
@@ -40,6 +41,7 @@ def init_receiver(ip, port, requestHandler):
     else:
         weightsync_thrift = thriftpy.load("weightsync.thrift", module_name="weightsync_thrift")
     receiver = make_server(weightsync_thrift.WeightForward, requestHandler, ip, port)
+    receiver.trans.client_timeout = None
     return receiver
 
 def init_sender(ip, port):
