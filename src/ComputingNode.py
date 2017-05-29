@@ -65,7 +65,7 @@ class ComputingNode:
         # switch between origin or optimized mode for uploading parameters
         self.lock = threading.Lock()
         if uploading_in_background:
-            self.upload_parameters = self.upload_parameters_bg
+            self.upload_parameters = self.upload_parameters_opt
         else:
             self.upload_parameters = self.upload_parameters_ori
 
@@ -116,8 +116,16 @@ class ComputingNode:
         self.lock.acquire()
         model = self.tensorgraph.get_parameters()
         text = comp.preprocess(model)
+        self.sw.accumulate('preprocess')
         self.status['GlobalStep'] = self.ps.upload(self.id, text)
         self.lock.release()
+
+    def upload_parameters_opt(self):
+        model = self.tensorgraph.get_parameters()
+        text = comp.preprocess(model)
+        self.sw.accumulate('preprocess')
+        self.status['GlobalStep'] = self.ps.getGlobalStatus() + 1
+        self.ps.non_blocking_upload(self.id, text)
 
     def upload_parameters_bg(self):
         upload_bg = threading.Thread(target=self.upload_parameters_ori)

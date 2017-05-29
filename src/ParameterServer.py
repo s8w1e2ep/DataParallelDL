@@ -36,6 +36,16 @@ class Dispatcher(object):
         self.lock.release()
         return status
 
+    def non_blocking_upload(self, cnid, u_parameters):
+        self.lock.acquire()
+        mes = {'mes_type':'prepare_to_train', 'mes_content':cnid}
+        self.__pass_to_queue(mes)
+        self.model = u_parameters
+        self.update_count += 1
+        status = self.update_count
+        self.lock.release()
+        return
+
     def download(self):
         self.lock.acquire()
         model = self.model
@@ -103,5 +113,10 @@ class ParameterServer(threading.Thread):
             service()
 
 if __name__ == "__main__":
-    ps_node = ParameterServer(0, True)
+    import argparse
+    parser = argparse.ArgumentParser(description='Argument Checker')
+    parser.add_argument("-p", "--predict", type=bool, help="enable predict service", default=False)
+    args = parser.parse_args()
+
+    ps_node = ParameterServer(0, args.predict)
     ps_node.run()
