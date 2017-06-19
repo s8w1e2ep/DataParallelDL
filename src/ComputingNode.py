@@ -15,6 +15,7 @@ from cluster_specification import cluster_spec
 
 def gpu_split(worker_num):
     proportion = 1. / (worker_num+1)
+    #proportion = 0.2
     gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=proportion)
     config = tf.ConfigProto(gpu_options=gpu_options)
     return config
@@ -188,3 +189,21 @@ def open_file(fname):
     existed = os.path.isfile(fname)
     f = open(fname, 'w') if existed else open(fname, 'a')
     return f
+
+if __name__ == '__main__':
+    import argparse
+    import timeit
+    parser = argparse.ArgumentParser(description='Argument Checker')
+    parser.add_argument("-w", "--worker", type=int, help="worker id", default=-1)
+    parser.add_argument("-s", "--size", type=int, help="training data size", default=10000)
+    parser.add_argument("-p", "--predict", type=bool, help="enable predict service", default=False)
+    parser.add_argument("-b", "--background", type=bool, help="upload parameters in background", default=False)
+    args = parser.parse_args()
+
+    if args.worker >= 0:
+        start = args.worker * args.size
+        length = args.size
+        cn_id = args.worker
+        cn_node = ComputingNode(cn_id, start, length, args.predict, args.background)
+        elapsed_time = timeit.Timer(cn_node.run).timeit(number=1)
+        print "cn_node %d : %f sec" % ((cn_id), elapsed_time)
