@@ -91,7 +91,7 @@ class TensorGraph:
         return gradients
 
     def put_gradients(self, gradients, staleness):
-        if staleness is None:
+        if staleness is None or staleness is 0:
             staleness = 1
         apply_gradients =self.graph_op[2]
         feed_dict = dict()
