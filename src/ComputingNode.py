@@ -44,6 +44,7 @@ class ComputingNode:
         self.id = cn_id
         self.batch_size = 200
         self.num_epochs = 3
+        self.staleness_threshold = 3
         self.train_dataset, self.train_labels, self.valid_dataset, self.valid_labels, self.test_dataset, self.test_labels = open_cifar10_dataset(start,length)
         gpu_config = gpu_split(len(cluster_spec['cn']))
         self.tensorgraph = CNN(gpu_config)
@@ -98,9 +99,9 @@ class ComputingNode:
             self.sw.reset()
             gradients = self.tensorgraph.get_gradients(all_batch_data[i], all_batch_label[i])
             self.sw.accumulate('compute_gradients')
-            self.update_parameters()
+            staleness = self.update_parameters()
             self.sw.reset()
-            self.apply_gradients(gradients)
+            self.apply_gradients(gradients, staleness)
             self.sw.accumulate('apply_gradients')
             # update the gradients to the ps
             self.upload_parameters()
@@ -132,9 +133,9 @@ class ComputingNode:
         upload_bg = threading.Thread(target=self.upload_parameters_ori)
         upload_bg.start()
 
-    def apply_gradients(self, gradients):
+    def apply_gradients(self, gradients, staleness):
         self.status['LocalStep'] += 1
-        self.tensorgraph.put_gradients(gradients)
+        self.tensorgraph.put_gradients(gradients, staleness)
 
     def update_parameters_opt(self):
         # sync with ps
@@ -142,10 +143,12 @@ class ComputingNode:
             gStatus = self.ps.getGlobalStatus()
         except:
             gStatus = -1
+        staleness = gStatus - self.status['GlobalStep']
         if gStatus == self.status['GlobalStep']:
             self.status['LocalHit'] += 1
             return
-        if gStatus == self.service_handler.getStatus():
+        version_stamp_diff = gStatus - self.service_handler.getStatus()
+        if version_stamp_diff < self.staleness_threshold and self.service_handler.getStatus() >= 0 and self.service_handler.getStatus() > self.status['GlobalStep']:
             self.status['RemoteHit'] += 1
             model = comp.deprocess(self.service_handler.getModel(), self.tensorgraph_shape)
             self.tensorgraph.put_parameters(model)
@@ -163,10 +166,13 @@ class ComputingNode:
         self.sw.reset()
         self.tensorgraph.put_parameters(model)
         self.sw.accumulate('put para')
+        return staleness
 
     def update_parameters_ori(self):
         self.sw.reset()
         try:
+            gStatus = self.ps.getGlobalStatus()
+            staleness = gStatus - self.status['GlobalStep']
             text = self.ps.download()
             self.sw.accumulate('download')
             model = comp.deprocess(text, self.tensorgraph_shape)
@@ -177,6 +183,7 @@ class ComputingNode:
             return
         self.tensorgraph.put_parameters(model)
         self.sw.accumulate('put para')
+        return staleness
 
 def accuracy(predictions, labels):
     if labels.ndim == 1:

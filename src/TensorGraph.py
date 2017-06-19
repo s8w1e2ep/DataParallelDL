@@ -90,11 +90,13 @@ class TensorGraph:
             gradients.append(gradient[0])
         return gradients
 
-    def put_gradients(self, gradients):
+    def put_gradients(self, gradients, staleness):
+        if staleness is None:
+            staleness = 1
         apply_gradients =self.graph_op[2]
         feed_dict = dict()
         for i, gradient_name in enumerate(self.parameter_placeholders):
-            feed_dict[gradient_name] = gradients[i]
+            feed_dict[gradient_name] = gradients[i] / staleness
         self.session.run(apply_gradients, feed_dict=feed_dict)
    
     def put_parameters(self, parameters):
