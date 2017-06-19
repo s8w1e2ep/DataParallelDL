@@ -4,8 +4,13 @@ import time
 import numpy as np
 from thrift_conn import init_sender
 
-def gpu_configure():
-    config = tf.ConfigProto(device_count = {'GPU': 0})
+def gpu_configure(gpu_proportion=0):
+    if gpu_proportion == 0:
+        config = tf.ConfigProto(device_count = {'GPU': 0})
+    else:
+        proportion = gpu_proportion
+        gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=proportion)
+        config = tf.ConfigProto(gpu_options=gpu_options)
     return config
 
 class Policy:
@@ -54,7 +59,7 @@ class Policy:
         tf_hidden = tf.matmul(tf_dataset, weights1) + biases1
         tf_activate = tf.nn.relu(tf_hidden)
         logits = tf.matmul(tf_activate, weights2) + biases2 
-        loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits, tf_labels))
+        loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=logits, labels=tf_labels))
         
         # Optimizer.
         optimization = tf.train.GradientDescentOptimizer(0.01).minimize(loss)
@@ -120,7 +125,7 @@ class Predictor(threading.Thread):
         eLabel = np.expand_dims(label, axis=0)
         self.history.append((data, label))
         # mini-batch or online training- 1: online, >=1: batch
-        self.batch_train(5)
+        self.mini_batch_train(5)
         # update records
         self.elapsed_record[cn_id] = current_time - self.arrive_record[cn_id]
         self.arrive_record[cn_id] = current_time
@@ -146,10 +151,15 @@ class Predictor(threading.Thread):
     def guess(self):
         return np.argmax(self.policy.predict(np.expand_dims(self.state, axis=0)))
 
-    def show(self):
+    def terminate(self):
         self.overall_batch_train()
+        with open('metadata.txt', 'w') as f:
+            data = [item[0] for item in self.history]
+            labels = [item[1] for item in self.history]
+            for i in xrange(len(data)):
+                f.write('{}\t{}\n'.format(data[i], labels[i]))
 
-    def batch_train(self, batch_size):
+    def mini_batch_train(self, batch_size):
         batch = self.history[-batch_size:]
         data = [item[0] for item in batch]
         labels = [item[1] for item in batch]
@@ -182,8 +192,8 @@ class Predictor(threading.Thread):
                         pass
                 elif mes['mes_type'] == 'notify':
                     self.notify(mes['mes_content'])
-                elif mes['mes_type'] == 'show':
-                    self.show()
+                elif mes['mes_type'] == 'terminate':
+                    self.terminate()
             except Exception as e:
                 pass
             self.mes_queue.task_done()

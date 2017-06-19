@@ -65,7 +65,7 @@ class Dispatcher(object):
         return model
 
     def getUploadRecord(self):
-        mes = {'mes_type':'show', 'mes_content':None}
+        mes = {'mes_type':'terminate', 'mes_content':None}
         self.__pass_to_queue(mes)
         self.mes_queue.join()
         return
@@ -97,7 +97,7 @@ class ParameterServer(threading.Thread):
         handler = Dispatcher(self.model, self.mes_queue)
         self.server = init_server(self.ip, self.port, handler)
         # handle for predict service
-        self.predictor = fprd.Predictor([len(cluster_spec['cn'])* 4, 5, len(cluster_spec['cn'])], cluster_spec, handler, self.mes_queue)
+        self.predictor = fprd.Predictor([len(cluster_spec['cn'])* 4, 10, len(cluster_spec['cn'])], cluster_spec, handler, self.mes_queue)
 
         super(ParameterServer, self).__init__()
 
