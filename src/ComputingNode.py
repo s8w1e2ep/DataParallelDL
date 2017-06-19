@@ -15,7 +15,6 @@ from cluster_specification import cluster_spec
 
 def gpu_split(worker_num):
     proportion = 1. / (worker_num+1)
-    #proportion = 0.2
     gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=proportion)
     config = tf.ConfigProto(gpu_options=gpu_options)
     return config
@@ -207,3 +206,4 @@ if __name__ == '__main__':
         cn_node = ComputingNode(cn_id, start, length, args.predict, args.background)
         elapsed_time = timeit.Timer(cn_node.run).timeit(number=1)
         print "cn_node %d : %f sec" % ((cn_id), elapsed_time)
+        os._exit(0)
