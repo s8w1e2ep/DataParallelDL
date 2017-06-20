@@ -10,7 +10,7 @@ from thrift_conn import init_receiver
 from dataset import open_cifar10_dataset
 from dataset import open_mnist_dataset
 import threading
-import external
+import time
 from cluster_specification import cluster_spec
 
 def gpu_split(worker_num):
@@ -71,6 +71,7 @@ class ComputingNode:
             self.upload_parameters = self.upload_parameters_ori
 
         self.sw = StopWatch()
+        self.logging = True
         self.status = {'GlobalStep':-1, 'LocalStep':0,'LocalHit':0, 'RemoteHit':0}
 
     def run(self):
@@ -82,10 +83,14 @@ class ComputingNode:
         del self.train_labels
         self.ps.notifyToStart(self.id)
         self.update_parameters()
+        st = time.time()
         for step in range(self.num_epochs):
             self.training(all_batch_data, all_batch_label)
             if step % 1 == 0:
                 self.validating()
+        et = time.time()
+        if self.logging:
+            self.write_log(et-st)
         self.terminate()
 
     def terminate(self):
@@ -184,6 +189,12 @@ class ComputingNode:
         self.tensorgraph.put_parameters(model)
         self.sw.accumulate('put para')
         return staleness
+    
+    def write_log(self, overall_elapsed, log_path='worker_log.txt'):
+        partial_elapsed = self.sw.get_log()
+        log_message = partial_elapsed + ',' + '%2.5f'%overall_elapsed + '\n'
+        with open(log_path, 'a') as f:
+            f.write(log_message)
 
 def accuracy(predictions, labels):
     if labels.ndim == 1:
