@@ -192,7 +192,8 @@ class ComputingNode:
     
     def write_log(self, overall_elapsed, log_path='worker_log.txt'):
         partial_elapsed = self.sw.get_log()
-        log_message = partial_elapsed + ',' + '%2.5f'%overall_elapsed + '\n'
+        hit_rate = (1000. * (self.status['LocalHit']+self.status['RemoteHit']) / self.status['LocalStep'] * 0.001)
+        log_message = partial_elapsed + ',' + '%2.5f'%overall_elapsed + ',' + '%1.3f'%hit_rate + '\n'
         with open(log_path, 'a') as f:
             f.write(log_message)
 
