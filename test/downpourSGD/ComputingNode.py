@@ -9,7 +9,7 @@ from thrift_conn import init_conn
 from dataset import open_cifar10_dataset
 from dataset import open_mnist_dataset
 import threading
-import external
+import time
 from cluster_specification import cluster_spec
 
 def gpu_split(worker_num):
@@ -31,6 +31,7 @@ class ComputingNode:
         # establish connection with parameter server to acquire store service
         self.ps = init_conn(cluster_spec['ps'][0]['IP'], cluster_spec['ps'][0]['Port'])
         self.sw = StopWatch()
+        self.logging = True
 
     def run(self):
         if not len(self.train_dataset) % self.batch_size == 0:
@@ -38,10 +39,14 @@ class ComputingNode:
         all_batch_data = [self.train_dataset[x:x+self.batch_size] for x in xrange(0, len(self.train_dataset), self.batch_size)]
         all_batch_label = [self.train_labels[x:x+self.batch_size] for x in xrange(0, len(self.train_labels), self.batch_size)]
         self.update_parameters()
+        st = time.time()
         for step in range(self.num_epochs):
             self.training(all_batch_data, all_batch_label)
             if step % 1 == 0:
                 self.validating()
+        et = time.time()
+        if self.logging:
+            self.write_log(et-st)
         self.terminate()
 
     def terminate(self):
@@ -79,6 +84,12 @@ class ComputingNode:
         self.sw.accumulate('deprocess')
         self.tensorgraph.put_parameters(model)
         self.sw.accumulate('put para')
+
+    def write_log(self, overall_elapsed, log_path='worker_log.txt'):
+        partial_elapsed = self.sw.get_log()
+        log_message = partial_elapsed + ',' + '%2.5f'%overall_elapsed + '\n'
+        with open(log_path, 'a') as f:
+            f.write(log_message)
 
 def accuracy(predictions, labels):
     if labels.ndim == 1:

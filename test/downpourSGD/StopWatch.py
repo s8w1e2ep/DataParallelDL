@@ -20,3 +20,8 @@ class StopWatch:
         print "\n"
         for key in iter(self.StampSet):
             print "%-20s\t%-2.5fsec" % (key, self.StampSet[key])
+
+    def get_log(self):
+        stamp_value_list = ["%2.5f"%self.StampSet[key] for key in iter(self.StampSet)]
+        log_message = ','.join(stamp_value_list)
+        return log_message
