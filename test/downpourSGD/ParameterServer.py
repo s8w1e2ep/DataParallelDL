@@ -63,3 +63,7 @@ class ParameterServer(threading.Thread):
     def run(self):
         for service in self.service_list:
             service()
+
+if __name__ == '__main__':
+    ps_node = ParameterServer(0)
+    ps_node.run()

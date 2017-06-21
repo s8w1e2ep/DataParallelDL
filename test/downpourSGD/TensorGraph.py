@@ -67,6 +67,16 @@ class TensorGraph:
         feed_dict[t_label] = label
         self.session.run(optimization, feed_dict=feed_dict)
 
+    def get_loss(self, data, label):
+        compute_loss = self.graph_op[0]
+        t_data = self.input_placeholders[0]
+        t_label = self.input_placeholders[1]
+        feed_dict = dict()
+        feed_dict[t_data] = data
+        feed_dict[t_label] = label
+        loss = self.session.run(compute_loss, feed_dict=feed_dict)
+        return loss
+
     def get_gradients(self, data, label):
         compute_gradients = self.graph_op[1]
         t_data = self.input_placeholders[0] 

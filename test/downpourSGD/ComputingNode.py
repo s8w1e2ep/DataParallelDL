@@ -22,7 +22,7 @@ class ComputingNode:
     def __init__(self, cn_id, start, length):
         self.id = cn_id
         self.batch_size = 200
-        self.num_epochs = 3
+        self.num_epochs = 10
         self.train_dataset, self.train_labels, self.valid_dataset, self.valid_labels, self.test_dataset, self.test_labels = open_cifar10_dataset(start,length)
         gpu_config = gpu_split(len(cluster_spec['cn']))
         self.tensorgraph = CNN(gpu_config)
@@ -58,7 +58,8 @@ class ComputingNode:
             self.update_parameters()
 
     def validating(self):
-        print("Valid accuracy: %.1f%%" % accuracy(self.tensorgraph.predict(self.valid_dataset), self.valid_labels))
+        print("Valid accuracy: %.1f%%" % accuracy(self.tensorgraph.predict(self.valid_dataset), self.valid_labels)),
+        print "\tLoss : " , self.tensorgraph.get_loss(self.valid_dataset, self.valid_labels)
 
     def testing(self):
         print("Test accuracy: %.1f%%" % accuracy(self.tensorgraph.predict(self.test_dataset), self.test_labels))
@@ -84,3 +85,19 @@ def accuracy(predictions, labels):
         return (100.0 * np.sum(np.argmax(predictions, 1) == labels) / predictions.shape[0])
     else:
         return (100.0 * np.sum(np.argmax(predictions, 1) == np.argmax(labels, 1)) / predictions.shape[0])
+
+if __name__ == '__main__':
+    import argparse
+    import timeit
+    parser = argparse.ArgumentParser(description='Argument Checker')
+    parser.add_argument("-w", "--worker", type=int, help="worker id", default=-1)
+    parser.add_argument("-s", "--size", type=int, help="training data size", default=10000)
+    args = parser.parse_args()
+
+    if args.worker >= 0:
+        start = args.worker * args.size
+        length = args.size
+        cn_id = args.worker
+        cn_node = ComputingNode(cn_id, start, length)
+        elapsed_time = timeit.Timer(cn_node.run).timeit(number=1)
+        print "cn_node %d : %f sec" % ((cn_id), elapsed_time)
